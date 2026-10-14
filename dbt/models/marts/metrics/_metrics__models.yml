@@ -19,13 +19,169 @@ models:
           arguments:
             combination_of_columns: [kpi_date, source]
 
+  - name: agg_daily_trip_metrics
+    description: >
+      Daily fleet KPIs: volume, revenue, unit economics, speed, payment mix,
+      airport and congestion-toll exposure, 7-day averages and week-over-week change.
+    columns:
+      - name: pickup_date
+        data_tests: [unique, not_null]
+      - name: cbd_toll_period
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [before_toll, after_toll]
+      - name: card_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: airport_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: cbd_tolled_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: suspicious_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: agg_hour_of_week_profile
+    description: Typical week, 7 days x 24 hours, with volumes averaged per calendar day.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [day_of_week, hour_of_day]
+    columns:
+      - name: hour_of_day
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 23
+      - name: share_of_week_trips
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: agg_borough_od_flows
+    description: Origin-destination matrix between boroughs with volume, value and speed per flow.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [pickup_borough, dropoff_borough]
+    columns:
+      - name: share_of_trips
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: share_of_origin_trips
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: agg_airport_trips
+    description: Trips to and from EWR, JFK and LGA, with their share of all trips and revenue.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [airport, direction]
+    columns:
+      - name: airport
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EWR, JFK, LGA]
+      - name: share_of_all_trips
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: agg_payment_mix
+    description: Payment type mix, tipping and disputes by borough and month.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [pickup_month, pickup_borough, payment_type]
+    columns:
+      - name: share_of_borough_trips
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: agg_zone_scorecard
+    description: Pickup zone scorecard with ranks and a revenue Pareto curve.
+    columns:
+      - name: pickup_zone_id
+        data_tests: [unique, not_null]
+      - name: revenue_tier
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [top_10, core_80pct, long_tail]
+      - name: cumulative_revenue_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1.000001
+  - name: agg_congestion_toll_weekly
+    description: Weekly congestion toll tracker by pickup borough, with Manhattan weekday-peak speed.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [week_start, pickup_borough]
+    columns:
+      - name: tolled_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+
+  - name: agg_monthly_summary
+    description: Monthly executive summary with month-over-month growth on per-day averages.
+    columns:
+      - name: pickup_month
+        data_tests: [unique, not_null]
+
 exposures:
   - name: mobility_kpis_dashboard
     type: dashboard
     maturity: medium
-    description: Looker Studio dashboard with demand, revenue and cancellations.
+    description: >
+      Looker Studio dashboard: monthly and daily KPIs, demand heatmap, borough
+      flows, airports, payment mix, zone ranking, congestion toll and real-time rides.
     owner:
       name: Rodrigo Andreatta
     depends_on:
       - ref('agg_daily_kpis')
       - ref('agg_zone_hourly_demand')
+      - ref('agg_daily_trip_metrics')
+      - ref('agg_monthly_summary')
+      - ref('agg_hour_of_week_profile')
+      - ref('agg_borough_od_flows')
+      - ref('agg_airport_trips')
+      - ref('agg_payment_mix')
+      - ref('agg_zone_scorecard')
+      - ref('agg_congestion_toll_weekly')

@@ -16,6 +16,11 @@ vars:
   # Thresholds used by tests and quality flags
   max_trip_duration_minutes: 360
   max_avg_speed_mph: 90
+  # Analytics marts
+  # NYC congestion relief zone toll (Manhattan below 60th St) started on this day
+  cbd_toll_start_date: "2025-01-05"
+  # TLC zone ids of the three airports
+  airport_zones: {1: "EWR", 132: "JFK", 138: "LGA"}
 
 models:
   mobility:
