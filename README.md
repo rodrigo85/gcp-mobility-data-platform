@@ -2,7 +2,7 @@
 
 An urban mobility data platform on Google Cloud, modeled on what Uber and Lyft run in production. It is built on the public New York City taxi data ([NYC TLC](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) and a real-time ride simulator.
 
-> **Status:** running end to end on a real GCP project. Batch (one TLC month, 3.5M trips) and streaming (real Pub/Sub into BigQuery) both land in bronze, dbt builds silver and gold, and Airflow orchestrates both paths, all under a hard BRL 100 cost cap. Dataflow and the Looker Studio dashboard are the remaining pieces. The full plan is in [docs/design-doc.md](docs/design-doc.md).
+> **Status:** running end to end on a real GCP project. Batch (six TLC months, 24.1M trips) and streaming (real Pub/Sub into BigQuery) both land in bronze, dbt builds silver and gold, and Airflow orchestrates both paths, all under a hard BRL 100 cost cap. Analytics marts and the Looker Studio dashboard are being finished; Dataflow is the last optional piece. The full plan is in [docs/design-doc.md](docs/design-doc.md).
 
 ## Architecture
 
@@ -70,6 +70,8 @@ Orchestration and Spark run on a self-hosted VPS that already hosts Airflow 2.10
 | Streaming end to end | Pub/Sub emulator on the VPS | 1,117 messages published (5% duplicates, 5% late, 2% malformed) → 1,047 unique events, 21 to the DLQ, 275 window rows, including a LATE pane that corrected an already-emitted window |
 | Streaming on real GCP | Pub/Sub → Beam (DirectRunner on the VPS) → BigQuery | `make vps-stream`: 335 messages → 315 events in `bronze.ride_events`, 6 malformed in the DLQ, 14 duplicates dropped, 93 window rows; `dbt_streaming` DAG `SUCCESS` with `PASS=24`. A first run at 10x the rate showed the DirectRunner tops out at ~3 events/s, which is the case for Dataflow |
 | Batch on real GCP | Airflow `tlc_monthly_ingestion` + `dbt_batch` | 7 tasks `SUCCESS`, 3,475,080 rows in BigQuery = Spark output; dbt `PASS=25 WARN=1 ERROR=0` |
+| Six-month backfill | `tlc_monthly_ingestion` for 2025-01 to 2025-06 | BigQuery = Spark in every month: 3,475,080 · 3,577,419 · 4,145,143 · 3,970,383 · 4,591,720 · 4,322,709 (24.1M trips); `fct_trips` rebuilt with uniqueness and relationship tests passing |
+| Reconciliation drift explained | Spark over the six months of Parquet (no BigQuery bytes) | The amounts check went from 2.4% to 3.7% of trips failing. 97.5% of failures are Flex Fare (upfront app price, not itemized by the TLC), whose share grew from 15.7% to 29% of trips; every other trip fails at a flat ~0.12% a month. The test now excludes Flex Fare and the marts use `total_amount` ([findings 6 to 8](docs/data-quality-findings.md)) |
 | Test suites | Local and VPS | Simulator 4, Beam 19, Spark 3 (on the VPS cluster), Airflow DAG integrity 7 (on the VPS Airflow 2.10.4); `dbt parse` clean; `terraform validate` clean |
 
 ## Layout
