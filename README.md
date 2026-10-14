@@ -6,24 +6,21 @@ An urban mobility data platform on Google Cloud, modeled on what Uber and Lyft r
 
 ## Architecture
 
-```
-                       ┌────────────── Airflow 2.10 (self-hosted VPS) ──────────────┐
-                       │ idempotent DAGs · backfill · sensors · asset-driven        │
-                       │ scheduling · dbt (Cosmos-ready)                             │
-                       └─────────────────────────────────────────────────────────────┘
- TLC Parquet (monthly) ─► PySpark 3.5 (schema normalization, quarantine) ─► GCS raw/
-                                                                     │ load job (free),
-                                                                     │ WRITE_TRUNCATE on the partition
- Ride simulator ─► Pub/Sub ─► Apache Beam (Dataflow) ────────────────►▼
-   (late, duplicate,          windows · watermark ·              BigQuery bronze
-    malformed events)         dedup · DLQ                              │ dbt
-                                                                       ▼
-                                silver: staging + intermediate (incremental, SCD2)
-                                                                       ▼
-                                gold: contracted facts/dimensions + metrics
-                                                                       ▼
-                         Looker Studio · dbt tests (quality) · Marquez (lineage, planned)
-```
+![Architecture: batch and streaming ingestion into BigQuery, dbt silver and gold, Airflow on a VPS, cost guardrails](docs/images/architecture.png)
+
+## In action
+
+**dbt lineage**, from the raw sources (green) to the KPI dashboard exposure (orange):
+
+![dbt lineage graph](docs/images/dbt-lineage.png)
+
+**The first month in BigQuery**: top pickup zones by revenue in `gold.fct_trips`, January 2025:
+
+![BigQuery query over gold.fct_trips](docs/images/bigquery-top-zones.jpg)
+
+**Tests and reconciliation**: `dbt build` with every data test, then the Airflow DAG proving that BigQuery holds exactly the rows Spark validated:
+
+![dbt build and Airflow reconciliation output](docs/images/terminal-tests.png)
 
 ## Runtime
 

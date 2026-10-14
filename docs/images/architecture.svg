@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 860" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5f6b7a"/>
+    </marker>
+    <style>
+      .bg { fill: #0f172a; }
+      .lane { fill: #111c33; stroke: #22314f; stroke-width: 1.5; }
+      .lane-title { fill: #94a3b8; font-size: 15px; font-weight: 600; letter-spacing: 1.5px; }
+      .box { stroke-width: 2; rx: 12; }
+      .src { fill: #12324a; stroke: #38bdf8; }
+      .proc { fill: #1e293b; stroke: #a78bfa; }
+      .gcp { fill: #13301f; stroke: #4ade80; }
+      .bq { fill: #0b2a4a; stroke: #60a5fa; }
+      .orch { fill: #3a2410; stroke: #fb923c; }
+      .guard { fill: #3b1320; stroke: #f87171; }
+      .t { fill: #f1f5f9; font-size: 18px; font-weight: 700; }
+      .s { fill: #cbd5e1; font-size: 13.5px; }
+      .edge { stroke: #5f6b7a; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .edge-label { fill: #94a3b8; font-size: 12.5px; font-style: italic; }
+      .h1 { fill: #f8fafc; font-size: 30px; font-weight: 800; }
+      .h2 { fill: #94a3b8; font-size: 16px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="860"/>
+  <text class="h1" x="40" y="54">GCP Mobility Data Platform</text>
+  <text class="h2" x="40" y="82">Batch + streaming ingestion · BigQuery + dbt · Airflow on a self-hosted VPS · near-zero cost</text>
+
+  <!-- Lanes -->
+  <rect class="lane" x="30" y="110" width="1540" height="235" rx="16"/>
+  <text class="lane-title" x="50" y="138">BATCH · NYC TLC TRIP RECORDS</text>
+  <rect class="lane" x="30" y="360" width="1540" height="200" rx="16"/>
+  <text class="lane-title" x="50" y="388">STREAMING · REAL-TIME RIDES</text>
+  <rect class="lane" x="30" y="575" width="1540" height="255" rx="16"/>
+  <text class="lane-title" x="50" y="603">WAREHOUSE · ORCHESTRATION · GUARDRAILS</text>
+
+  <!-- Batch lane -->
+  <rect class="box src" x="60" y="165" width="220" height="140"/>
+  <text class="t" x="80" y="200">NYC TLC</text>
+  <text class="s" x="80" y="226">Monthly Parquet</text>
+  <text class="s" x="80" y="248">~3.5M trips / month</text>
+  <text class="s" x="80" y="270">schema drift across years</text>
+
+  <rect class="box proc" x="350" y="165" width="290" height="140"/>
+  <text class="t" x="370" y="200">PySpark 3.5 (VPS cluster)</text>
+  <text class="s" x="370" y="226">canonical schema · deterministic trip_id</text>
+  <text class="s" x="370" y="248">quarantine with reason · dedup</text>
+  <text class="s" x="370" y="270">idempotent per-month overwrite</text>
+
+  <rect class="box gcp" x="710" y="165" width="230" height="140"/>
+  <text class="t" x="730" y="200">Cloud Storage</text>
+  <text class="s" x="730" y="226">raw/ prefix per month</text>
+  <text class="s" x="730" y="248">cleared before upload</text>
+  <text class="s" x="730" y="270">30-day lifecycle</text>
+
+  <path class="edge" d="M280,235 L345,235"/>
+  <path class="edge" d="M640,235 L705,235"/>
+  <text class="edge-label" x="648" y="225">upload</text>
+
+  <!-- Streaming lane -->
+  <rect class="box src" x="60" y="410" width="220" height="125"/>
+  <text class="t" x="80" y="445">Ride simulator</text>
+  <text class="s" x="80" y="471">late · duplicate ·</text>
+  <text class="s" x="80" y="493">malformed events</text>
+
+  <rect class="box gcp" x="350" y="410" width="190" height="125"/>
+  <text class="t" x="370" y="445">Pub/Sub</text>
+  <text class="s" x="370" y="471">event_ts attribute</text>
+  <text class="s" x="370" y="493">dead-letter topic</text>
+
+  <rect class="box proc" x="610" y="410" width="330" height="125"/>
+  <text class="t" x="630" y="445">Apache Beam (Dataflow)</text>
+  <text class="s" x="630" y="471">event-time windows · allowed lateness</text>
+  <text class="s" x="630" y="493">dedup by event_id · typed DLQ</text>
+  <text class="s" x="630" y="515">free load jobs every 5 min</text>
+
+  <path class="edge" d="M280,472 L345,472"/>
+  <path class="edge" d="M540,472 L605,472"/>
+
+  <!-- BigQuery column -->
+  <rect class="box bq" x="1010" y="165" width="250" height="370"/>
+  <text class="t" x="1030" y="200">BigQuery bronze</text>
+  <text class="s" x="1030" y="226">schema owned by Terraform</text>
+  <text class="s" x="1030" y="248">yellow_trips (monthly partitions)</text>
+  <text class="s" x="1030" y="270">ride_events · zone_demand_1m</text>
+  <text class="s" x="1030" y="292">ride_events_dlq (30-day TTL)</text>
+  <text class="s" x="1030" y="330">WRITE_TRUNCATE on</text>
+  <text class="s" x="1030" y="352">yellow_trips$YYYYMM</text>
+  <text class="s" x="1030" y="390">reconciliation:</text>
+  <text class="s" x="1030" y="412">BigQuery rows = Spark rows</text>
+  <text class="s" x="1030" y="450">policy tag on rider_id</text>
+
+  <path class="edge" d="M940,235 L1005,235"/>
+  <text class="edge-label" x="948" y="225">load job</text>
+  <path class="edge" d="M940,472 L1005,472"/>
+
+  <rect class="box bq" x="1330" y="165" width="215" height="170"/>
+  <text class="t" x="1350" y="200">dbt silver</text>
+  <text class="s" x="1350" y="226">staging + intermediate</text>
+  <text class="s" x="1350" y="248">SCD2 zone snapshot</text>
+  <text class="s" x="1350" y="270">incremental merge</text>
+  <text class="s" x="1350" y="292">unit tests</text>
+
+  <rect class="box bq" x="1330" y="365" width="215" height="170"/>
+  <text class="t" x="1350" y="400">dbt gold</text>
+  <text class="s" x="1350" y="426">fct_trips (contract,</text>
+  <text class="s" x="1350" y="448">partition filter required)</text>
+  <text class="s" x="1350" y="470">fct_rides · dims</text>
+  <text class="s" x="1350" y="492">demand + KPI marts</text>
+
+  <path class="edge" d="M1260,250 L1325,250"/>
+  <path class="edge" d="M1437,335 L1437,360"/>
+
+  <!-- Bottom lane -->
+  <rect class="box orch" x="60" y="630" width="470" height="170"/>
+  <text class="t" x="80" y="665">Airflow 2.10 (self-hosted VPS)</text>
+  <text class="s" x="80" y="691">sensor → download → spark-submit → GCS → load → reconcile</text>
+  <text class="s" x="80" y="713">asset-triggered dbt_batch · hourly dbt_streaming</text>
+  <text class="s" x="80" y="735">idempotent backfills · DAGs paused on creation</text>
+  <text class="s" x="80" y="757">Airflow 3-compatible imports</text>
+
+  <rect class="box gcp" x="570" y="630" width="450" height="170"/>
+  <text class="t" x="590" y="665">Terraform + CI/CD</text>
+  <text class="s" x="590" y="691">~65 resources · least-privilege service accounts</text>
+  <text class="s" x="590" y="713">GitHub OIDC (Workload Identity, no JSON keys)</text>
+  <text class="s" x="590" y="735">Ruff · pytest · terraform validate · dbt parse</text>
+  <text class="s" x="590" y="757">slim dbt CI in an ephemeral dataset per PR</text>
+
+  <rect class="box guard" x="1060" y="630" width="485" height="170"/>
+  <text class="t" x="1080" y="665">Cost guardrails (hard cap BRL 100)</text>
+  <text class="s" x="1080" y="691">budget alerts at 25 / 50 / 75 / 90 / 100%</text>
+  <text class="s" x="1080" y="713">kill switch: Cloud Function unlinks billing at 70%</text>
+  <text class="s" x="1080" y="735">BigQuery quota 30 GiB/day · maximum_bytes_billed</text>
+  <text class="s" x="1080" y="757">first month of data: 8 GiB billed of the 1 TiB free tier</text>
+</svg>
