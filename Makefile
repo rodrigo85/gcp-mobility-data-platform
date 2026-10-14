@@ -62,8 +62,8 @@ tf-check: ## terraform fmt + validate without credentials or backend
 check: test dbt-parse tf-check ## Everything that runs offline: no GCP account needed
 
 # --- Infra -------------------------------------------------------------------
-tf-init: ## terraform init
-	$(TF) init
+tf-init: ## terraform init with the remote GCS state (needs infra/terraform/backend.hcl)
+	$(TF) init -backend-config=backend.hcl
 tf-validate:
 	$(TF) validate
 tf-plan: ## terraform plan

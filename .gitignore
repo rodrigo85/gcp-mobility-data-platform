@@ -48,3 +48,4 @@ infra/terraform/crash.log
 .secrets/
 infra/terraform/tfplan
 infra/terraform/.build/
+infra/terraform/backend.hcl

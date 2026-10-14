@@ -16,11 +16,11 @@ terraform {
     }
   }
 
-  # After the first apply, migrate the state to a bucket:
-  # backend "gcs" {
-  #   bucket = "<project-id>-tfstate"
-  #   prefix = "mobility"
-  # }
+  # Remote state in a versioned bucket. The bucket name comes from backend.hcl
+  # (see backend.hcl.example): terraform init -backend-config=backend.hcl
+  backend "gcs" {
+    prefix = "mobility"
+  }
 }
 
 provider "google" {

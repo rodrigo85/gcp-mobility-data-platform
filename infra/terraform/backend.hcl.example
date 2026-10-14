@@ -1,0 +1,4 @@
+# Copy to backend.hcl (git-ignored). Create the bucket once, outside Terraform:
+#   gcloud storage buckets create gs://<PROJECT_ID>-tfstate --location us-central1 #     --uniform-bucket-level-access --public-access-prevention
+#   gcloud storage buckets update gs://<PROJECT_ID>-tfstate --versioning
+bucket = "<PROJECT_ID>-tfstate"

@@ -14,3 +14,4 @@ infra/terraform/terraform.tfvars
 infra/terraform/tfplan
 infra/terraform/.terraform.tfstate.lock.info
 infra/terraform/.build/
+infra/terraform/backend.hcl
