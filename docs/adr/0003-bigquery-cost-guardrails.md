@@ -31,3 +31,15 @@ Plus architecture choices that avoid cost:
 - Minimum bronze latency for streaming is about 5 minutes.
 - Developers need to adjust `dev_window_start/end` to work with other months.
 - The daily quota's unit must be checked in the console before it is enabled (`enable_query_quota`).
+
+## Amendment (2026-10-14): hard cap of BRL 100
+
+A budget alone only sends e-mails. The project now has a hard cap:
+
+| Layer | Setting | Effect |
+|---|---|---|
+| Budget | BRL 100/month, gross of credits (`EXCLUDE_ALL_CREDITS`) | E-mails at 25%, 50%, 75%, 90% and 100% |
+| Kill switch | `infra/functions/budget_kill_switch`, triggered via Pub/Sub at 70% (BRL 70) | Unlinks the billing account: every paid service stops |
+| Query quota | 30,720 MiB/day (unit verified as `MiBy` in the Service Usage API) | BigQuery rejects queries beyond ~30 GiB/day, keeping the month under the 1 TiB free tier |
+
+The kill switch fires at 70% because Cloud Billing reports cost with a delay of several hours; the margin absorbs what is spent in that window. Re-enabling is manual: re-link the billing account in the console. Stored data is kept, but Google may delete resources if billing stays disabled for long.

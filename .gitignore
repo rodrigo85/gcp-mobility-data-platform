@@ -46,3 +46,5 @@ infra/terraform/crash.log
 
 # Service account keys used on the VPS
 .secrets/
+infra/terraform/tfplan
+infra/terraform/.build/

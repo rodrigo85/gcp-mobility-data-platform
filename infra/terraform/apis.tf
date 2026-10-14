@@ -11,6 +11,14 @@ locals {
     "sts.googleapis.com",
     "billingbudgets.googleapis.com",
     "serviceusage.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "cloudbilling.googleapis.com",
+    # Kill switch (Cloud Functions gen2 runs on Cloud Run, built by Cloud Build)
+    "cloudfunctions.googleapis.com",
+    "run.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "eventarc.googleapis.com",
   ]
 }
 
