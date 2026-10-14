@@ -1,0 +1,22 @@
+sources:
+  - name: rides
+    description: Outputs of the Beam streaming pipeline (pipelines/beam).
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: bronze
+    tables:
+      - name: ride_events
+        description: Valid events deduplicated by Beam. Daily partitions on event_ts.
+        config:
+          loaded_at_field: ingest_ts
+          freshness:
+            # Beam loads every 5 minutes
+            warn_after: {count: 15, period: minute}
+            error_after: {count: 60, period: minute}
+      - name: zone_demand_1m
+        description: >
+          Demand per zone in 1-minute windows. A window may have several panes
+          (ON_TIME and LATE); the last pane is the correct one.
+        config:
+          loaded_at_field: ingest_ts
+      - name: ride_events_dlq
+        description: Messages rejected by the pipeline, with the reason.

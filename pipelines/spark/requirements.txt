@@ -1,0 +1,4 @@
+# Same version as the VPS Spark cluster
+pyspark==3.5.5
+pyarrow==21.0.0
+pytest==9.1.1

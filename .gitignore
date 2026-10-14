@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venvs/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Environment and credentials
+.env
+*.json.key
+*-sa-key.json
+gcp-credentials*.json
+
+# Local data
+data/
+*.parquet
+spark-warehouse/
+metastore_db/
+derby.log
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+dbt/package-lock.yml
+
+# Airflow
+orchestration/airflow/logs/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfvars
+infra/terraform/crash.log
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Service account keys used on the VPS
+.secrets/

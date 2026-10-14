@@ -1,0 +1,102 @@
+# dbt slim CI: on each PR, build only the modified models (and their
+# dependents) in an ephemeral ci_pr_<n> dataset, deferring to prod for the
+# rest (--defer). The dataset is dropped at the end, on success or failure.
+#
+# Repository configuration (Settings > Variables):
+#   GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_CI_SERVICE_ACCOUNT, GCS_BUCKET
+name: dbt PR
+
+on:
+  pull_request:
+    paths: ["dbt/**"]
+  push:
+    branches: [main]
+    paths: ["dbt/**"]
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for Workload Identity Federation
+
+concurrency:
+  group: dbt-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: true
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  DBT_PROFILES_DIR: .
+  MANIFEST_URI: gs://${{ vars.GCS_BUCKET }}/dbt/prod-manifest/manifest.json
+
+jobs:
+  slim-ci:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: dbt
+    env:
+      DBT_TARGET: ci
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: dbt/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: dbt deps
+
+      - name: Download prod manifest
+        id: manifest
+        run: |
+          mkdir -p prod-state
+          if gcloud storage cp "$MANIFEST_URI" prod-state/manifest.json; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build modified models
+        run: |
+          if [ "${{ steps.manifest.outputs.found }}" = "true" ]; then
+            dbt build --select state:modified+ --defer --state prod-state --fail-fast
+          else
+            echo "No prod manifest: full build"
+            dbt build --fail-fast
+          fi
+
+      - name: Lint SQL
+        run: sqlfluff lint models analyses --format github-annotation-native
+
+      - name: Drop ephemeral datasets
+        if: always()
+        run: |
+          for ds in $(bq ls --project_id "$GCP_PROJECT_ID" --format=json \
+                      | jq -r ".[].datasetReference.datasetId | select(startswith(\"ci_pr_${PR_NUMBER}\"))"); do
+            bq rm -r -f -d "${GCP_PROJECT_ID}:${ds}"
+          done
+
+  publish-prod-manifest:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    env:
+      DBT_TARGET: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt && dbt deps && dbt parse
+      - run: gcloud storage cp target/manifest.json "$MANIFEST_URI"

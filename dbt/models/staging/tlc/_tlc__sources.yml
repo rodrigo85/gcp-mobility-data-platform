@@ -1,0 +1,19 @@
+sources:
+  - name: tlc
+    description: NYC TLC trips normalized by the Spark job and loaded via load job.
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: bronze
+    tables:
+      - name: yellow_trips
+        description: One row per yellow taxi trip. Monthly partitions on pickup_datetime.
+        config:
+          loaded_at_field: _ingested_at
+          freshness:
+            # TLC publishes each month roughly two months late
+            warn_after: {count: 45, period: day}
+            error_after: {count: 75, period: day}
+        columns:
+          - name: trip_id
+            data_tests: [unique, not_null]
+          - name: pickup_datetime
+            data_tests: [not_null]

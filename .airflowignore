@@ -1,0 +1,5 @@
+# The whole repository lives inside the VPS DAGs folder.
+# Airflow should only read orchestration/airflow/dags; everything else
+# (especially .venvs and data) would slow parsing down.
+^(\.venvs|\.git|\.secrets|data|dbt|docs|infra|pipelines|simulator)(/|$)
+^orchestration/airflow/tests(/|$)

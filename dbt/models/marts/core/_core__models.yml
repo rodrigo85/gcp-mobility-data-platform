@@ -1,0 +1,94 @@
+models:
+  - name: fct_trips
+    description: >
+      One row per yellow taxi trip. Daily partitions on pickup_date with a
+      required partition filter: every query must filter on pickup_date.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: trip_id
+        data_type: string
+        constraints: [{type: not_null}]
+        data_tests:
+          - unique:
+              config:
+                # require_partition_filter applies to tests too
+                where: "pickup_date >= '2020-01-01'"
+      - name: pickup_date
+        data_type: date
+        constraints: [{type: not_null}]
+      - name: pickup_datetime
+        data_type: datetime
+      - name: dropoff_datetime
+        data_type: datetime
+      - name: pickup_zone_id
+        data_type: int64
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_zones')
+                field: zone_id
+              config:
+                where: "pickup_date >= '2020-01-01'"
+      - name: pickup_borough
+        data_type: string
+      - name: dropoff_zone_id
+        data_type: int64
+      - name: dropoff_borough
+        data_type: string
+      - name: vendor_id
+        data_type: int64
+      - name: payment_type
+        data_type: string
+      - name: passenger_count
+        data_type: int64
+      - name: trip_distance_miles
+        data_type: float64
+      - name: trip_duration_minutes
+        data_type: float64
+      - name: avg_speed_mph
+        data_type: float64
+      - name: fare_amount
+        data_type: numeric
+      - name: tip_amount
+        data_type: numeric
+      - name: tip_pct
+        data_type: float64
+      - name: tolls_amount
+        data_type: numeric
+      - name: congestion_surcharge
+        data_type: numeric
+      - name: airport_fee
+        data_type: numeric
+      - name: cbd_congestion_fee
+        data_type: numeric
+      - name: total_amount
+        data_type: numeric
+      - name: is_suspicious
+        data_type: boolean
+      - name: _batch_month
+        data_type: string
+      - name: _ingested_at
+        data_type: timestamp
+
+  - name: fct_rides
+    description: One row per streaming ride, with status and the duration of each phase.
+    columns:
+      - name: ride_id
+        data_tests: [unique, not_null]
+
+  - name: dim_zones
+    description: TLC zones with change history (SCD type 2).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [zone_id, valid_from]
+    columns:
+      - name: zone_key
+        data_tests: [unique, not_null]
+
+  - name: dim_date
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]

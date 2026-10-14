@@ -1,0 +1,11 @@
+snapshots:
+  - name: snap_taxi_zones
+    description: >
+      History of TLC zones. If TLC redraws a zone or changes its borough,
+      the old version is kept with dbt_valid_to set.
+    relation: ref('stg_tlc__taxi_zones')
+    config:
+      schema: snapshots
+      unique_key: zone_id
+      strategy: check
+      check_cols: all

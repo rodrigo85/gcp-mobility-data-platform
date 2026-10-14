@@ -1,0 +1,4 @@
+dbt-core==1.12.6
+dbt-bigquery==1.12.1
+sqlfluff==4.4.0
+sqlfluff-templater-dbt==4.4.0

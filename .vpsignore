@@ -1,0 +1,11 @@
+.git/
+.venvs/
+.secrets/
+data/
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+infra/terraform/.terraform/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/

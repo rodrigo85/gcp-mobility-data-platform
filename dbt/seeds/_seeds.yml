@@ -1,0 +1,11 @@
+seeds:
+  - name: taxi_zone_lookup
+    description: >
+      Official TLC zone lookup table
+      (https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv).
+    config:
+      column_types:
+        LocationID: int64
+        Borough: string
+        Zone: string
+        service_zone: string

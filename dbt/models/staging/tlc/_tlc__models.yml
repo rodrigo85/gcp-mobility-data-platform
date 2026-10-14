@@ -1,0 +1,23 @@
+models:
+  - name: stg_tlc__yellow_trips
+    description: Trips with standardized names and decoded payment type.
+    columns:
+      - name: trip_id
+        data_tests: [unique, not_null]
+      - name: pickup_zone_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_tlc__taxi_zones')
+                field: zone_id
+      - name: payment_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [flex_fare, credit_card, cash, no_charge, dispute, unknown, voided, other]
+
+  - name: stg_tlc__taxi_zones
+    description: The 265 TLC zones, including 264/265 (unknown and outside NYC).
+    columns:
+      - name: zone_id
+        data_tests: [unique, not_null]

@@ -1,0 +1,51 @@
+name: mobility
+version: "0.1.0"
+config-version: 2
+profile: mobility
+require-dbt-version: [">=1.10.0", "<2.0.0"]
+
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Outside prod, bronze reads are restricted to this window
+  # (see macros/limit_dev_data.sql). Keeps dev and CI within the free tier.
+  dev_window_start: "2025-01-01"
+  dev_window_end: "2025-02-01"
+  # How far back to reprocess ride events incrementally (late data)
+  rides_lookback_hours: 2
+  # Thresholds used by tests and quality flags
+  max_trip_duration_minutes: 360
+  max_avg_speed_mph: 90
+
+models:
+  mobility:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +schema: silver
+      +materialized: view
+      tlc:
+        +tags: ["batch"]
+      rides:
+        +tags: ["streaming"]
+    intermediate:
+      +schema: silver
+      +materialized: view
+    marts:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  mobility:
+    +schema: silver
+    +tags: ["batch"]
+
+snapshots:
+  mobility:
+    +tags: ["batch"]
+
+data_tests:
+  mobility:
+    +store_failures: false
+    +severity: error

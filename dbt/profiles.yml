@@ -1,0 +1,43 @@
+# No secrets: authentication uses Application Default Credentials.
+#   dev  -> gcloud auth application-default login
+#   ci   -> Workload Identity Federation (google-github-actions/auth)
+#   prod -> Airflow service account
+mobility:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('DBT_DEV_DATASET_PREFIX', 'dev') }}"
+      location: "{{ env_var('GCP_REGION', 'us-central1') }}"
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 300
+      job_retries: 1
+      # A query above this cap fails instead of being billed
+      maximum_bytes_billed: "{{ env_var('DBT_MAXIMUM_BYTES_BILLED', '10000000000') | int }}"
+
+    ci:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      # One dataset per PR, dropped at the end of the workflow
+      dataset: "ci_pr_{{ env_var('PR_NUMBER', 'local') }}"
+      location: "{{ env_var('GCP_REGION', 'us-central1') }}"
+      threads: 8
+      priority: interactive
+      job_execution_timeout_seconds: 300
+      maximum_bytes_billed: 5000000000
+
+    prod:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: gold
+      location: "{{ env_var('GCP_REGION', 'us-central1') }}"
+      threads: 8
+      priority: batch
+      job_execution_timeout_seconds: 1800
+      job_retries: 2
+      maximum_bytes_billed: 50000000000
