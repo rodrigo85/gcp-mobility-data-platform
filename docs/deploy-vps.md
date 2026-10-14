@@ -67,3 +67,23 @@ export PUBSUB_EMULATOR_HOST=127.0.0.1:8085
 ```
 
 With the emulator up, the simulator and the Beam pipeline run from `.venvs/beam` (see `make simulate` and `make beam-local`). Create the topic and subscription in the emulator first with `make emulator-topics`.
+
+### Against real Pub/Sub and BigQuery
+
+The same pipeline runs on the VPS host with the DirectRunner and writes to BigQuery through free load jobs, so a bounded test costs nothing. It uses the `mobility-pipelines` service account (publish, subscribe, write to bronze), never the orchestrator's:
+
+```bash
+# On the VPS, once: the key stays in .secrets/ (git-ignored, excluded from rsync)
+gcloud iam service-accounts keys create .secrets/pipelines.json \
+  --iam-account mobility-pipelines@<PROJECT_ID>.iam.gserviceaccount.com
+chmod 600 .secrets/pipelines.json
+
+# From your machine (WSL on Windows)
+make vps-stream GCP_PROJECT_ID=<PROJECT_ID>              # ~6 min: Beam + 3 min of simulated rides
+make vps-dbt-build GCP_PROJECT_ID=<PROJECT_ID> DBT_SELECT=tag:streaming
+make vps-dag-run DAG=dbt_streaming DATE=$(date -u +%Y-%m-%dT%H:00:00+00:00)
+```
+
+`make vps-stream` runs [scripts/stream_to_bigquery.sh](../scripts/stream_to_bigquery.sh): Beam starts first, the simulator publishes for `SIM_SECONDS`, and `timeout` stops the unbounded pipeline after two more trigger periods so the last panes are loaded. It ends by printing the row counts of the three bronze streaming tables.
+
+`dbt_streaming` starts with a source freshness check on `bronze.ride_events` (warn after 15 minutes, error after 60). Run the DAG within the hour after the stream, otherwise it stops at that gate on purpose: stale real-time data must not refresh the KPIs silently.

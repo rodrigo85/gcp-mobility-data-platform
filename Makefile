@@ -20,7 +20,8 @@ MONTH ?= 2025-01
 .PHONY: help venvs lint test test-beam test-spark test-simulator dbt-parse tf-check check \
         tf-init tf-plan tf-apply tf-validate \
         emulator-topics simulate beam-local beam-dataflow \
-        vps-deploy vps-setup vps-dag-test vps-download vps-spark-normalize \n        vps-dbt-unit vps-dbt-build \
+        vps-deploy vps-setup vps-dag-test vps-download vps-spark-normalize \
+        vps-dbt-unit vps-dbt-build vps-stream vps-dag-run \
         dbt-deps dbt-seed dbt-build dbt-docs
 
 help: ## List targets
@@ -98,39 +99,41 @@ beam-dataflow: ## Same pipeline on Dataflow (costs money: use trial credits)
 # Run these targets from a shell with SSH access to the VPS (on Windows, inside WSL).
 VPS          ?= vpsmouts
 VPS_DIR      ?= /opt/spark-cluster/projects/gcp-mobility-data-platform
+# Keepalive: long remote commands print nothing for minutes, and idle SSH sessions get dropped
+SSH          := ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=6
 PIPELINE_DIR := /pipeline/gcp-mobility-data-platform
 SPARK_PYTHON := /usr/local/bin/python3.11
 
 vps-deploy: ## Sync the repository to the VPS
-	rsync -az --delete --exclude-from=.vpsignore ./ $(VPS):$(VPS_DIR)/
-	ssh $(VPS) 'mkdir -p $(VPS_DIR)/data $(VPS_DIR)/.venvs $(VPS_DIR)/.secrets && \
+	rsync -az --delete -e '$(SSH)' --exclude-from=.vpsignore ./ $(VPS):$(VPS_DIR)/
+	$(SSH) $(VPS) 'mkdir -p $(VPS_DIR)/data $(VPS_DIR)/.venvs $(VPS_DIR)/.secrets && \
 		chmod 700 $(VPS_DIR)/.secrets'
 
 # The scheduler mounts the project read-only. The venvs are created in the
 # Spark master (read-write), which has the same Python 3.11 under /usr/local,
 # so the dbt venv runs the same in both containers.
 vps-setup: ## Isolated venvs: dbt (containers' Python 3.11) and Beam (host Python)
-	ssh $(VPS) 'docker exec da-spark-master sh -c "\
+	$(SSH) $(VPS) 'docker exec da-spark-master sh -c "\
 		$(SPARK_PYTHON) -m venv $(PIPELINE_DIR)/.venvs/dbt && \
 		$(PIPELINE_DIR)/.venvs/dbt/bin/pip install -q -r $(PIPELINE_DIR)/dbt/requirements.txt && \
 		cd $(PIPELINE_DIR)/dbt && ../.venvs/dbt/bin/dbt deps"'
-	ssh $(VPS) 'python3 -m venv $(VPS_DIR)/.venvs/beam && \
+	$(SSH) $(VPS) 'python3 -m venv $(VPS_DIR)/.venvs/beam && \
 		$(VPS_DIR)/.venvs/beam/bin/pip install -q -r $(VPS_DIR)/pipelines/beam/requirements.txt \
 			-r $(VPS_DIR)/simulator/requirements.txt -e $(VPS_DIR)/pipelines/beam'
 
 vps-dag-test: ## DAG integrity tests on the VPS Airflow
-	ssh $(VPS) 'docker exec da-airflow-scheduler sh -c "\
+	$(SSH) $(VPS) 'docker exec da-airflow-scheduler sh -c "\
 		python -m pip install -q --target /tmp/mobility-pytest pytest==9.1.1 && \
 		cd $(PIPELINE_DIR) && PYTHONPATH=/tmp/mobility-pytest python -m pytest \
 			orchestration/airflow/tests -p no:cacheprovider"'
 
 vps-download: ## Download one TLC month on the VPS: make vps-download MONTH=2025-01
-	ssh $(VPS) 'docker exec da-spark-master $(SPARK_PYTHON) \
+	$(SSH) $(VPS) 'docker exec da-spark-master $(SPARK_PYTHON) \
 		$(PIPELINE_DIR)/pipelines/spark/mobility_spark/download_tlc.py \
 		--month $(MONTH) --dest $(PIPELINE_DIR)/data/landing/yellow'
 
 vps-spark-normalize: ## spark-submit on the cluster: make vps-spark-normalize MONTH=2025-01
-	ssh $(VPS) 'docker exec da-spark-master /opt/spark/bin/spark-submit \
+	$(SSH) $(VPS) 'docker exec da-spark-master /opt/spark/bin/spark-submit \
 		--master spark://spark-master:7077 --name normalize_tlc_$(MONTH) \
 		--conf spark.executor.memory=4g --conf spark.executor.cores=2 \
 		--conf spark.cores.max=4 --conf spark.sql.shuffle.partitions=16 \
@@ -142,7 +145,7 @@ vps-spark-normalize: ## spark-submit on the cluster: make vps-spark-normalize MO
 # credentials the DAGs use. Requires mobility_config to be set up (README 5.3).
 GCP_PROJECT_ID ?=
 DBT_SELECT     ?= tag:batch
-VPS_DBT = ssh $(VPS) 'docker exec -w $(PIPELINE_DIR)/dbt \
+VPS_DBT = $(SSH) $(VPS) 'docker exec -w $(PIPELINE_DIR)/dbt \
 	-e DBT_TARGET=prod -e DBT_PROFILES_DIR=$(PIPELINE_DIR)/dbt \
 	-e DBT_TARGET_PATH=/tmp/mobility-dbt/target -e DBT_LOG_PATH=/tmp/mobility-dbt/logs \
 	-e GCP_PROJECT_ID=$(GCP_PROJECT_ID) -e GCP_REGION=us-central1 \
@@ -158,6 +161,21 @@ vps-dbt-unit: ## dbt unit tests only: fixture rows from YAML, ~0 bytes scanned
 
 vps-dbt-build: ## dbt build without Airflow: make vps-dbt-build DBT_SELECT=tag:batch
 	$(VPS_DBT) build --select $(DBT_SELECT)'
+
+# Real Pub/Sub -> Beam (DirectRunner on the VPS host) -> BigQuery, bounded run.
+# Needs the mobility-pipelines key at .secrets/pipelines.json (docs/deploy-vps.md).
+SIM_SECONDS ?= 180
+SIM_RATE    ?= 0.5
+vps-stream: ## Bounded streaming run to BigQuery: make vps-stream SIM_SECONDS=180
+	$(SSH) $(VPS) 'cd $(VPS_DIR) && GCP_PROJECT_ID=$(GCP_PROJECT_ID) \
+		GOOGLE_APPLICATION_CREDENTIALS=$(VPS_DIR)/.secrets/pipelines.json \
+		SIM_SECONDS=$(SIM_SECONDS) SIM_RATE=$(SIM_RATE) bash scripts/stream_to_bigquery.sh'
+
+# Runs every task of one DAG run in-process, without the scheduler
+DAG_DIR := /opt/airflow/dags/gcp-mobility-data-platform/orchestration/airflow/dags
+vps-dag-run: ## One DAG run: make vps-dag-run DAG=dbt_streaming DATE=2026-10-14T18:15:00+00:00
+	$(SSH) $(VPS) 'docker exec da-airflow-scheduler airflow dags test -S $(DAG_DIR) $(DAG) $(DATE) \
+		2>&1 | grep -E "Marking task as|DagRun Finished|Done\. PASS"'
 
 # --- dbt ---------------------------------------------------------------------
 dbt-deps:

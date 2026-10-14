@@ -47,11 +47,16 @@ def main() -> None:
     # Queue of delayed messages, ordered by when they are due
     delayed: list[tuple[float, int, Publishable]] = []
     seq = sent = 0
+    # Fractional rates (0.5 = one ride every 2 s) accumulate across ticks
+    ride_budget = 0.0
     deadline = time.monotonic() + args.duration_seconds
 
     while time.monotonic() < deadline:
         tick = time.monotonic()
-        for _ in range(max(1, round(args.rate))):
+        ride_budget += args.rate
+        rides_now = int(ride_budget)
+        ride_budget -= rides_now
+        for _ in range(rides_now):
             for msg in to_messages(simulate_ride(utcnow(), rng, chaos), rng, chaos):
                 delay = float(msg.attributes.pop("publish_delay_s", 0))
                 if delay:

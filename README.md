@@ -2,7 +2,7 @@
 
 An urban mobility data platform on Google Cloud, modeled on what Uber and Lyft run in production. It is built on the public New York City taxi data ([NYC TLC](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) and a real-time ride simulator.
 
-> **Status:** skeleton. The structure, contracts and extension points are in place, and `TODO`s mark what is left to implement. The full plan is in [docs/design-doc.md](docs/design-doc.md).
+> **Status:** running end to end on a real GCP project. Batch (one TLC month, 3.5M trips) and streaming (real Pub/Sub into BigQuery) both land in bronze, dbt builds silver and gold, and Airflow orchestrates both paths, all under a hard BRL 100 cost cap. Dataflow and the Looker Studio dashboard are the remaining pieces. The full plan is in [docs/design-doc.md](docs/design-doc.md).
 
 ## Architecture
 
@@ -68,6 +68,8 @@ Orchestration and Spark run on a self-hosted VPS that already hosts Airflow 2.10
 | Spark normalization of TLC 2025-01 | VPS Spark 3.5 cluster | 3,475,226 raw rows → 3,475,080 valid, 146 quarantined (124 `dropoff_before_pickup`, 22 `pickup_outside_batch_month`), 0 duplicates, ~90 s |
 | Parquet output vs. BigQuery contract | Spark output schema | Types match: `DATETIME` via INT64 with `isAdjustedToUTC=false`, `NUMERIC(12,2)` for money |
 | Streaming end to end | Pub/Sub emulator on the VPS | 1,117 messages published (5% duplicates, 5% late, 2% malformed) → 1,047 unique events, 21 to the DLQ, 275 window rows, including a LATE pane that corrected an already-emitted window |
+| Streaming on real GCP | Pub/Sub → Beam (DirectRunner on the VPS) → BigQuery | `make vps-stream`: 335 messages → 315 events in `bronze.ride_events`, 6 malformed in the DLQ, 14 duplicates dropped, 93 window rows; `dbt_streaming` DAG `SUCCESS` with `PASS=24`. A first run at 10x the rate showed the DirectRunner tops out at ~3 events/s, which is the case for Dataflow |
+| Batch on real GCP | Airflow `tlc_monthly_ingestion` + `dbt_batch` | 7 tasks `SUCCESS`, 3,475,080 rows in BigQuery = Spark output; dbt `PASS=25 WARN=1 ERROR=0` |
 | Test suites | Local and VPS | Simulator 4, Beam 19, Spark 3 (on the VPS cluster), Airflow DAG integrity 7 (on the VPS Airflow 2.10.4); `dbt parse` clean; `terraform validate` clean |
 
 ## Layout
@@ -276,16 +278,25 @@ bq query --use_legacy_sql=false \
   'select count(*) trips, round(sum(total_amount), 2) revenue from `<PROJECT_ID>.gold.fct_trips` where pickup_date between "2025-01-01" and "2025-01-31"'
 ```
 
-**5.5 Cost check** (bytes billed by every query today; the free tier is 1 TiB/month):
+**5.5 Streaming on real Pub/Sub, still free.** Needs a `mobility-pipelines` key in `.secrets/pipelines.json` ([docs/deploy-vps.md](docs/deploy-vps.md#against-real-pubsub-and-bigquery)). Beam runs on the VPS with the DirectRunner and writes through free load jobs:
+
+```bash
+make vps-stream GCP_PROJECT_ID=<PROJECT_ID>                                    # ~7 min
+make vps-dag-run DAG=dbt_streaming DATE=$(date -u +%Y-%m-%dT%H:%M:00+00:00)    # within the hour
+```
+
+Expected: `ride_events` new rows ≈ published messages minus ~5% duplicates and ~2% malformed (those land in `ride_events_dlq`), `0 rows with event_ts before the run`, then `source_freshness` and `dbt_build` `SUCCESS` with `PASS=24`. Run the DAG more than an hour later and it stops at `source_freshness` on purpose.
+
+**5.6 Cost check** (bytes billed by every query today; the free tier is 1 TiB/month):
 
 ```bash
 bq query --use_legacy_sql=false \
   'select round(sum(total_bytes_billed)/pow(1024,3), 2) gib_billed from `region-us-central1`.INFORMATION_SCHEMA.JOBS where date(creation_time) = current_date()'
 ```
 
-**5.6 Go live.** Unpause `tlc_monthly_ingestion` (it backfills every month since 2025-01; narrow `start_date` first to load fewer months), `dbt_batch` (starts whenever bronze is updated) and `dbt_streaming` (hourly).
+**5.7 Go live.** Unpause `tlc_monthly_ingestion` (it backfills every month since 2025-01; narrow `start_date` first to load fewer months), `dbt_batch` (starts whenever bronze is updated) and `dbt_streaming` (hourly).
 
-**5.7 Streaming on Dataflow** (no free tier; uses trial credits): `make beam-dataflow`, with `make simulate` pointing at the real topic (unset `PUBSUB_EMULATOR_HOST`).
+**5.8 Streaming on Dataflow** (no free tier; uses trial credits): `make beam-dataflow`, with `make simulate` pointing at the real topic (unset `PUBSUB_EMULATOR_HOST`).
 
 ## Documentation
 
