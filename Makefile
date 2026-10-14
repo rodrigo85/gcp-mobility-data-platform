@@ -20,7 +20,7 @@ MONTH ?= 2025-01
 .PHONY: help venvs lint test test-beam test-spark test-simulator dbt-parse tf-check check \
         tf-init tf-plan tf-apply tf-validate \
         emulator-topics simulate beam-local beam-dataflow \
-        vps-deploy vps-setup vps-dag-test vps-download vps-spark-normalize \
+        vps-deploy vps-setup vps-dag-test vps-download vps-spark-normalize \n        vps-dbt-unit vps-dbt-build \
         dbt-deps dbt-seed dbt-build dbt-docs
 
 help: ## List targets
@@ -137,6 +137,27 @@ vps-spark-normalize: ## spark-submit on the cluster: make vps-spark-normalize MO
 		$(PIPELINE_DIR)/pipelines/spark/mobility_spark/normalize_tlc.py --month $(MONTH) \
 		--input $(PIPELINE_DIR)/data/landing/yellow/yellow_tripdata_$(MONTH).parquet \
 		--output $(PIPELINE_DIR)/data/normalized/yellow_trips'
+
+# dbt straight in the scheduler container, no Airflow: same venv, profile and
+# credentials the DAGs use. Requires mobility_config to be set up (README 5.3).
+GCP_PROJECT_ID ?=
+DBT_SELECT     ?= tag:batch
+VPS_DBT = ssh $(VPS) 'docker exec -w $(PIPELINE_DIR)/dbt \
+	-e DBT_TARGET=prod -e DBT_PROFILES_DIR=$(PIPELINE_DIR)/dbt \
+	-e DBT_TARGET_PATH=/tmp/mobility-dbt/target -e DBT_LOG_PATH=/tmp/mobility-dbt/logs \
+	-e GCP_PROJECT_ID=$(GCP_PROJECT_ID) -e GCP_REGION=us-central1 \
+	-e GOOGLE_APPLICATION_CREDENTIALS=$(PIPELINE_DIR)/.secrets/orchestrator.json \
+	da-airflow-scheduler $(PIPELINE_DIR)/.venvs/dbt/bin/dbt
+
+# Unit tests need their input relations to exist. Only the upstream *views* are
+# (re)created: that processes 0 bytes, and tables are never touched. Do not use
+# --empty here: it would persist the views with `limit 0`.
+vps-dbt-unit: ## dbt unit tests only: fixture rows from YAML, ~0 bytes scanned
+	$(VPS_DBT) run --select +test_type:unit,config.materialized:view'
+	$(VPS_DBT) test --select test_type:unit'
+
+vps-dbt-build: ## dbt build without Airflow: make vps-dbt-build DBT_SELECT=tag:batch
+	$(VPS_DBT) build --select $(DBT_SELECT)'
 
 # --- dbt ---------------------------------------------------------------------
 dbt-deps:

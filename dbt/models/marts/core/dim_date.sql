@@ -1,3 +1,5 @@
+{{ config(tags=['batch', 'streaming']) }}
+
 with spine as (
 
     {{ dbt_utils.date_spine(

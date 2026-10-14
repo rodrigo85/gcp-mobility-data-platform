@@ -49,8 +49,8 @@ unit_tests:
           - {zone_id: 236, borough: Manhattan, zone_name: Upper East Side North}
     expect:
       rows:
-        - {trip_id: normal, trip_duration_minutes: 30.0, tip_pct: 0.2, is_suspicious: false, pickup_borough: Queens}
-        - {trip_id: teleport, trip_duration_minutes: 1.0, tip_pct: null, is_suspicious: true, dropoff_borough: EWR}
+        - {trip_id: normal, trip_duration_minutes: 30.0, tip_pct: 0.2, is_suspicious: false, pickup_borough: Queens, dropoff_borough: Manhattan}
+        - {trip_id: teleport, trip_duration_minutes: 1.0, tip_pct: null, is_suspicious: true, pickup_borough: Queens, dropoff_borough: EWR}
 
   - name: rides_lifecycle_derives_status_and_timings
     model: int_rides__lifecycle
@@ -67,6 +67,6 @@ unit_tests:
           - {event_id: e5, ride_id: r3, event_type: completed, event_ts: "2026-01-01 12:30:00", fare_amount: 15.5, ingest_ts: "2026-01-01 12:35:00"}
     expect:
       rows:
-        - {ride_id: r1, ride_status: accepted, seconds_to_accept: 90, has_missing_events: false}
-        - {ride_id: r2, ride_status: cancelled, seconds_to_accept: null, has_missing_events: false}
-        - {ride_id: r3, ride_status: completed, fare_amount: 15.5, has_missing_events: true}
+        - {ride_id: r1, ride_status: accepted, seconds_to_accept: 90, fare_amount: null, has_missing_events: false}
+        - {ride_id: r2, ride_status: cancelled, seconds_to_accept: null, fare_amount: null, has_missing_events: false}
+        - {ride_id: r3, ride_status: completed, seconds_to_accept: null, fare_amount: 15.5, has_missing_events: true}

@@ -1,3 +1,5 @@
+{{ config(tags=['batch', 'streaming']) }}
+
 -- Zone dimension with history (SCD type 2) built from the snapshot
 select
     {{ dbt_utils.generate_surrogate_key(['zone_id', 'dbt_valid_from']) }} as zone_key,

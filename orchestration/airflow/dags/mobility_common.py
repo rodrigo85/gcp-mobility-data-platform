@@ -49,7 +49,7 @@ SPARK_PYTHON = "/usr/local/bin/python3.11"
 CONFIG = "var.json.mobility_config"
 GCP_PROJECT = "{{ " + CONFIG + ".gcp_project }}"
 GCS_BUCKET = "{{ " + CONFIG + ".gcs_bucket }}"
-GCP_CONN_ID = os.environ.get("MOBILITY_GCP_CONN_ID", "google_cloud_default")
+GCP_CONN_ID = os.environ.get("MOBILITY_GCP_CONN_ID", "mobility_gcp")
 
 # Logical assets: link the producer DAG to its consumers (data-aware scheduling)
 BRONZE_YELLOW_TRIPS = Asset("mobility://bronze/yellow_trips")

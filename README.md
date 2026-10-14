@@ -186,29 +186,93 @@ Running the same month again overwrites these outputs, so the result is identica
 
 ### 5. Full cloud run (GCP)
 
-Needs a GCP project with billing enabled (the free tier requires a billing account). The guardrails in [ADR 0003](docs/adr/0003-bigquery-cost-guardrails.md) keep it near zero.
+Needs a GCP project linked to a billing account (the free tier requires one). The commands below run on the VPS, which already has `gcloud`, Terraform and the Airflow/Spark containers. Expected cost for a one-month test is zero; the hard cap is described in [ADR 0003](docs/adr/0003-bigquery-cost-guardrails.md).
 
-1. **Infrastructure.** Copy `infra/terraform/terraform.tfvars.example` to `terraform.tfvars`, fill it in, then:
-   ```bash
-   gcloud auth application-default login
-   make tf-init tf-plan     # review the plan
-   make tf-apply
-   ```
-2. **dbt in your dev dataset** (reads one month of bronze, see `dev_window_*` in `dbt_project.yml`):
-   ```bash
-   make dbt-deps dbt-seed dbt-build
-   ```
-3. **Airflow.** Follow [docs/deploy-vps.md](docs/deploy-vps.md#gcp-credentials): service account key in `.secrets/`, the `google_cloud_default` connection and the `mobility_config` Variable. Then unpause the DAGs (they are created paused):
-   - `tlc_monthly_ingestion` backfills every month since 2025-01 and ends each run with `reconcile_counts` (BigQuery rows = Spark valid rows).
-   - `dbt_batch` starts by itself whenever the bronze table is updated.
-   - `dbt_streaming` runs hourly.
-4. **Streaming on Dataflow** (paid; use trial credits): `make beam-dataflow`, with `make simulate` pointing at the real topic (unset `PUBSUB_EMULATOR_HOST`).
+> **Secrets never leave the VPS.** The service account key is created directly in `.secrets/` (git-ignored, excluded from `rsync`, mode 600). Tokens are read from `gcloud` into environment variables and never written to files, logs or the repository.
+
+**5.1 Log in** (interactive, once):
+
+```bash
+gcloud auth login --no-launch-browser
+```
+
+**5.2 Infrastructure.** Copy `infra/terraform/terraform.tfvars.example` to `terraform.tfvars` (git-ignored) and fill in `project_id` and `billing_account_id`. Keep `budget_currency_code` equal to your billing account currency. Then:
+
+```bash
+cd infra/terraform
+export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)   # short-lived, never stored
+terraform init
+terraform plan -out=tfplan        # review: ~65 resources, all free while idle
+terraform apply tfplan
+```
+
+Check that the guardrails are live:
+
+```bash
+gcloud billing budgets list --billing-account=<BILLING_ACCOUNT_ID>                  # budget in your currency
+gcloud functions describe budget-kill-switch --region us-central1 --format='value(state)'   # ACTIVE
+bq ls <PROJECT_ID>:bronze                                                            # 4 tables
+```
+
+**5.3 Airflow credentials** (details in [docs/deploy-vps.md](docs/deploy-vps.md#gcp-credentials)):
+
+```bash
+gcloud iam service-accounts keys create .secrets/orchestrator.json \
+  --iam-account mobility-orchestrator@<PROJECT_ID>.iam.gserviceaccount.com
+chmod 600 .secrets/orchestrator.json
+
+KEY=/pipeline/gcp-mobility-data-platform/.secrets/orchestrator.json
+docker exec da-airflow-scheduler airflow connections add mobility_gcp \
+  --conn-type google_cloud_platform --conn-extra "{\"key_path\": \"$KEY\", \"project\": \"<PROJECT_ID>\"}"
+docker exec da-airflow-scheduler airflow variables set mobility_config \
+  "{\"gcp_project\": \"<PROJECT_ID>\", \"gcs_bucket\": \"<PROJECT_ID>-mobility-lake\", \"gcp_keyfile\": \"$KEY\"}"
+```
+
+**5.4 Test in layers, Airflow last.** Each layer runs on its own, so a failure points at one component instead of a DAG run waiting on retries. The commands run from your machine (WSL on Windows) against the VPS:
+
+| # | Command | What it proves | Cost | Expected |
+|---|---|---|---|---|
+| a | `make vps-download MONTH=2025-01` | TLC download (idempotent) | 0 | `downloaded: ... (59158238 bytes)` or `already downloaded` |
+| b | `make vps-spark-normalize MONTH=2025-01` | Spark job on the cluster | 0 | `batch metrics: ... "valid_rows": 3475080, "quarantine_rows": 146` |
+| c | `make vps-dbt-unit GCP_PROJECT_ID=<PROJECT_ID>` | dbt unit tests on fixture rows | ~0 bytes | `PASS=2` |
+| d | `make vps-dbt-build GCP_PROJECT_ID=<PROJECT_ID>` | Silver and gold, with every data test | ~1 GiB of the 1 TiB free tier | `PASS=25 WARN=1 ERROR=0` (the warning is a known source issue, see [docs/data-quality-findings.md](docs/data-quality-findings.md)) |
+| e | DAG `tlc_monthly_ingestion` (below) | The full orchestrated chain, GCS load included | 0 (loads are free) | 7 tasks `SUCCESS`, `'bigquery_rows': 3475080` |
+
+Step (d) needs bronze loaded, which happens in (e) the first time. On a fresh project, run (e) right after (b).
+
+For (e), `airflow dags test` runs a single DAG run in the foreground without unpausing anything. The logical date `2025-02-01` processes the 2025-01 month:
+
+```bash
+DAGS=/opt/airflow/dags/gcp-mobility-data-platform/orchestration/airflow/dags
+docker exec da-airflow-scheduler airflow dags test -S $DAGS tlc_monthly_ingestion 2025-02-01
+```
+
+Run it twice: the counts stay the same, which proves the partition load is idempotent.
+
+Verify in BigQuery:
+
+```bash
+bq query --use_legacy_sql=false \
+  'select count(*) trips, round(sum(total_amount), 2) revenue from `<PROJECT_ID>.gold.fct_trips` where pickup_date between "2025-01-01" and "2025-01-31"'
+```
+
+**5.5 Cost check** (bytes billed by every query today; the free tier is 1 TiB/month):
+
+```bash
+bq query --use_legacy_sql=false \
+  'select round(sum(total_bytes_billed)/pow(1024,3), 2) gib_billed from `region-us-central1`.INFORMATION_SCHEMA.JOBS where date(creation_time) = current_date()'
+```
+
+**5.6 Go live.** Unpause `tlc_monthly_ingestion` (it backfills every month since 2025-01; narrow `start_date` first to load fewer months), `dbt_batch` (starts whenever bronze is updated) and `dbt_streaming` (hourly).
+
+**5.7 Streaming on Dataflow** (no free tier; uses trial credits): `make beam-dataflow`, with `make simulate` pointing at the real topic (unset `PUBSUB_EMULATOR_HOST`).
 
 ## Documentation
 
 - [Design doc](docs/design-doc.md)
 - [ADRs](docs/adr/)
 - [Data SLOs](docs/data-slos.md)
+- [Data quality findings](docs/data-quality-findings.md)
 - [Query optimization report](docs/query-optimization.md)
 - [VPS deployment](docs/deploy-vps.md)
 - [Runbook: streaming backlog](docs/runbooks/streaming-backlog.md)

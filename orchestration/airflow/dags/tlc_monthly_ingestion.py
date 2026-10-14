@@ -45,6 +45,10 @@ MONTH = '{{ data_interval_start.strftime("%Y-%m") }}'  # double quotes survive s
 PARTITION = '{{ data_interval_start.strftime("%Y%m") }}'
 LANDING = DATA_DIR / "landing" / "yellow"
 NORMALIZED = DATA_DIR / "normalized" / "yellow_trips"
+# Single source of truth for the bronze contract, shared with Terraform
+BRONZE_SCHEMA = json.loads(
+    (MOBILITY_HOME / "infra/schemas/bronze_yellow_trips.json").read_text(encoding="utf-8")
+)
 GCS_PREFIX = f"raw/yellow_trips/batch_month={MONTH}/"
 
 with DAG(
@@ -135,6 +139,9 @@ with DAG(
                 },
                 "writeDisposition": "WRITE_TRUNCATE",
                 "createDisposition": "CREATE_NEVER",
+                # Explicit schema: without it BigQuery infers TIMESTAMP for Parquet
+                # timestamps without a time zone and rejects the DATETIME columns
+                "schema": {"fields": BRONZE_SCHEMA},
                 "parquetOptions": {"enableListInference": True},
             }
         },

@@ -38,30 +38,10 @@ resource "google_bigquery_table" "yellow_trips" {
   require_partition_filter = false
   deletion_protection      = true
 
-  schema = jsonencode(concat(
-    [
-      { name = "vendor_id", type = "INT64" },
-      { name = "pickup_datetime", type = "DATETIME", description = "NYC local time" },
-      { name = "dropoff_datetime", type = "DATETIME" },
-      { name = "passenger_count", type = "INT64" },
-      { name = "trip_distance", type = "FLOAT64", description = "Miles" },
-      { name = "rate_code_id", type = "INT64" },
-      { name = "store_and_fwd_flag", type = "STRING" },
-      { name = "pickup_zone_id", type = "INT64" },
-      { name = "dropoff_zone_id", type = "INT64" },
-      { name = "payment_type", type = "INT64" },
-    ],
-    [for col in [
-      "fare_amount", "extra", "mta_tax", "tip_amount", "tolls_amount", "improvement_surcharge",
-      "total_amount", "congestion_surcharge", "airport_fee", "cbd_congestion_fee",
-    ] : { name = col, type = "NUMERIC" }],
-    [
-      { name = "_source_file", type = "STRING" },
-      { name = "trip_id", type = "STRING", mode = "REQUIRED", description = "sha256 of the canonical fields" },
-      { name = "_batch_month", type = "STRING", mode = "REQUIRED" },
-      { name = "_ingested_at", type = "TIMESTAMP", mode = "REQUIRED" },
-    ],
-  ))
+  # Shared with the load task in orchestration/airflow/dags/tlc_monthly_ingestion.py:
+  # the load passes this schema explicitly so Parquet timestamps without a time
+  # zone land as DATETIME (BigQuery would otherwise infer TIMESTAMP).
+  schema = file("${path.module}/../schemas/bronze_yellow_trips.json")
 }
 
 resource "google_bigquery_table" "ride_events" {

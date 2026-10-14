@@ -44,7 +44,7 @@ make vps-spark-normalize MONTH=2025-01   # spark-submit on the cluster
 
 1. Create a key for the `mobility-orchestrator` service account (created by Terraform).
 2. Copy it to `/opt/spark-cluster/projects/gcp-mobility-data-platform/.secrets/orchestrator.json` with `chmod 600`.
-3. In Airflow, create the `google_cloud_default` connection (Google Cloud type) pointing to that file.
+3. In Airflow, create the `mobility_gcp` connection (Google Cloud type; a dedicated ID so the shared Airflow keeps `google_cloud_default` free) pointing to that file.
 4. Create the `mobility_config` Variable:
 
 ```json

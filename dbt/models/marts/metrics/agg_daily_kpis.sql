@@ -1,4 +1,5 @@
-{{ config(tags=['batch', 'streaming']) }}
+-- Needs both fct_trips and fct_rides, so it runs with the streaming models
+{{ config(tags=['streaming']) }}
 
 with tlc as (
 

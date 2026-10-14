@@ -1,0 +1,104 @@
+[
+  {
+    "name": "vendor_id",
+    "type": "INTEGER"
+  },
+  {
+    "name": "pickup_datetime",
+    "type": "DATETIME",
+    "description": "NYC local time"
+  },
+  {
+    "name": "dropoff_datetime",
+    "type": "DATETIME"
+  },
+  {
+    "name": "passenger_count",
+    "type": "INTEGER"
+  },
+  {
+    "name": "trip_distance",
+    "type": "FLOAT",
+    "description": "Miles"
+  },
+  {
+    "name": "rate_code_id",
+    "type": "INTEGER"
+  },
+  {
+    "name": "store_and_fwd_flag",
+    "type": "STRING"
+  },
+  {
+    "name": "pickup_zone_id",
+    "type": "INTEGER"
+  },
+  {
+    "name": "dropoff_zone_id",
+    "type": "INTEGER"
+  },
+  {
+    "name": "payment_type",
+    "type": "INTEGER"
+  },
+  {
+    "name": "fare_amount",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "extra",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "mta_tax",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "tip_amount",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "tolls_amount",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "improvement_surcharge",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "total_amount",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "congestion_surcharge",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "airport_fee",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "cbd_congestion_fee",
+    "type": "NUMERIC"
+  },
+  {
+    "name": "_source_file",
+    "type": "STRING"
+  },
+  {
+    "name": "trip_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "sha256 of the canonical fields"
+  },
+  {
+    "name": "_batch_month",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "_ingested_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  }
+]
