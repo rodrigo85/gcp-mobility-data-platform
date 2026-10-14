@@ -8,19 +8,42 @@ An urban mobility data platform on Google Cloud, modeled on what Uber and Lyft r
 
 ![Architecture: batch and streaming ingestion into BigQuery, dbt silver and gold, Airflow on a VPS, cost guardrails](docs/images/architecture.png)
 
+Two ingestion paths feed the same BigQuery warehouse:
+
+- **Batch (top lane):** the monthly NYC TLC files are normalized by PySpark on a self-hosted Spark cluster, staged in Cloud Storage and loaded into `bronze.yellow_trips` with a free load job that replaces exactly one monthly partition.
+- **Streaming (middle lane):** a simulator publishes ride events to Pub/Sub, including late, duplicate and malformed ones on purpose. Apache Beam validates them, deduplicates by `event_id`, aggregates demand in event-time windows and routes bad messages to a dead-letter table.
+- **Warehouse and operations (bottom lane):** dbt builds silver and gold on top of bronze. Airflow orchestrates everything from a VPS. Terraform owns every GCP resource, and a hard cost cap shuts billing off before spend reaches BRL 100.
+
 ## In action
 
-**dbt lineage**, from the raw sources (green) to the KPI dashboard exposure (orange):
+Real output from the first end-to-end run, with January 2025: 3.47 million trips.
 
-![dbt lineage graph](docs/images/dbt-lineage.png)
+### dbt lineage
 
-**The first month in BigQuery**: top pickup zones by revenue in `gold.fct_trips`, January 2025:
+![dbt lineage graph from the raw sources to the KPI dashboard](docs/images/dbt-lineage.png)
 
-![BigQuery query over gold.fct_trips](docs/images/bigquery-top-zones.jpg)
+Every model from the raw sources (green) to the dashboard exposure (orange). The two paths stay separate until the marts:
 
-**Tests and reconciliation**: `dbt build` with every data test, then the Airflow DAG proving that BigQuery holds exactly the rows Spark validated:
+- **Historical trips:** `tlc.yellow_trips` → `stg_tlc__yellow_trips` → `int_trips__enriched` → `fct_trips` → `agg_zone_hourly_demand`.
+- **Real-time rides:** `rides.ride_events` → `stg_rides__events` → `int_rides__lifecycle` → `fct_rides`.
 
-![dbt build and Airflow reconciliation output](docs/images/terminal-tests.png)
+Both join the zone dimension, which keeps history through an SCD2 snapshot (`snap_taxi_zones` → `dim_zones`), and meet in `agg_daily_kpis`.
+
+### BigQuery: querying the gold layer
+
+![BigQuery console running a query over gold.fct_trips](docs/images/bigquery-top-zones.jpg)
+
+A query over `gold.fct_trips` joined to `dim_zones`, ranking pickup zones by revenue. JFK and LaGuardia lead on revenue (long airport trips), while Manhattan zones lead on tip percentage.
+
+`fct_trips` is partitioned by day and clustered by zone, and it **requires a partition filter**: a query without `pickup_date` is rejected instead of scanning the whole table. This query reads one month and only the columns it needs.
+
+### Tests and reconciliation
+
+![dbt build output and the Airflow DAG reconciliation result](docs/images/terminal-tests.png)
+
+**Top:** `dbt build` runs every model, snapshot, unit test and data test. 25 passed and 0 errors. The one warning is a known issue in the TLC source data: some totals leave out fees, as documented in [data-quality-findings.md](docs/data-quality-findings.md).
+
+**Bottom:** the `tlc_monthly_ingestion` DAG runs in Airflow: download, Spark, GCS, BigQuery load. Its last task reconciles the counts: **3,475,080 rows in BigQuery = 3,475,080 valid rows counted by Spark**. 146 rows were quarantined, each with its reason. Running the DAG again gives the same numbers, because each load replaces its partition.
 
 ## Runtime
 
