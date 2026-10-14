@@ -49,6 +49,12 @@ models:
               arguments:
                 min_value: 0
                 max_value: 1
+      - name: flex_fare_share
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
       - name: suspicious_share
         data_tests:
           - dbt_utils.accepted_range:
@@ -185,3 +191,30 @@ exposures:
       - ref('agg_payment_mix')
       - ref('agg_zone_scorecard')
       - ref('agg_congestion_toll_weekly')
+
+unit_tests:
+  - name: monthly_summary_normalizes_growth_by_days
+    description: >
+      Growth compares per-day averages, so a shorter month is not read as a drop.
+      January has two days observed, February one; the top zone comes from fct_trips.
+    model: agg_monthly_summary
+    given:
+      - input: ref('agg_daily_trip_metrics')
+        rows:
+          - {pickup_date: "2025-01-06", trips: 100, revenue: 2000, is_weekend: false}
+          - {pickup_date: "2025-01-11", trips: 100, revenue: 2000, is_weekend: true}
+          - {pickup_date: "2025-02-03", trips: 150, revenue: 3600, is_weekend: false}
+      - input: ref('fct_trips')
+        rows:
+          - {pickup_date: "2025-01-06", pickup_zone_id: 132, is_suspicious: false}
+          - {pickup_date: "2025-01-06", pickup_zone_id: 132, is_suspicious: false}
+          - {pickup_date: "2025-01-06", pickup_zone_id: 236, is_suspicious: false}
+          - {pickup_date: "2025-02-03", pickup_zone_id: 236, is_suspicious: false}
+      - input: ref('dim_zones')
+        rows:
+          - {zone_id: 132, zone_name: JFK Airport, is_current: true}
+          - {zone_id: 236, zone_name: Upper East Side North, is_current: true}
+    expect:
+      rows:
+        - {year_month: "2025-01", days_observed: 2, trips: 200, avg_trips_per_day: 100, avg_ticket: 20, weekend_to_weekday_ratio: 1.0, top_pickup_zone: JFK Airport, trips_per_day_mom_change: null, revenue_per_day_mom_change: null, avg_ticket_mom_change: null}
+        - {year_month: "2025-02", days_observed: 1, trips: 150, avg_trips_per_day: 150, avg_ticket: 24, weekend_to_weekday_ratio: null, top_pickup_zone: Upper East Side North, trips_per_day_mom_change: 0.5, revenue_per_day_mom_change: 0.8, avg_ticket_mom_change: 0.2}

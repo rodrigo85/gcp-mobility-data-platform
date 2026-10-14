@@ -16,7 +16,6 @@ with trips as (
         trip_distance_miles,
         trip_duration_minutes,
         avg_speed_mph,
-        fare_amount,
         tip_pct,
         total_amount,
         cbd_congestion_fee,
@@ -34,7 +33,6 @@ daily as (
         countif(not is_suspicious) as trips,
         countif(is_suspicious) as suspicious_trips,
         sum(if(is_suspicious, 0, total_amount)) as revenue,
-        sum(if(is_suspicious, 0, fare_amount)) as fare_revenue,
         sum(if(is_suspicious, 0, trip_distance_miles)) as total_miles,
         avg(if(is_suspicious, null, passenger_count)) as avg_passengers,
         approx_quantiles(if(is_suspicious, null, trip_distance_miles), 100)[offset(50)] as p50_distance_miles,
@@ -45,6 +43,7 @@ daily as (
         countif(not is_suspicious and payment_type = 'credit_card') as card_trips,
         countif(not is_suspicious and payment_type = 'cash') as cash_trips,
         countif(not is_suspicious and payment_type = 'dispute') as disputed_trips,
+        countif(not is_suspicious and payment_type = 'flex_fare') as flex_fare_trips,
         countif(not is_suspicious and coalesce(pickup_airport, dropoff_airport) is not null) as airport_trips,
         countif(not is_suspicious and cbd_congestion_fee > 0) as cbd_tolled_trips,
         sum(if(is_suspicious, 0, cbd_congestion_fee)) as cbd_toll_revenue
@@ -67,10 +66,12 @@ ratios as (
         p50_speed_mph,
         p50_card_tip_pct,
         safe_divide(revenue, trips) as avg_ticket,
-        safe_divide(fare_revenue, total_miles) as fare_per_mile,
+        -- total_amount, not fare_amount: Flex Fare trips do not itemize the fare
+        safe_divide(revenue, total_miles) as revenue_per_mile,
         safe_divide(card_trips, trips) as card_share,
         safe_divide(cash_trips, trips) as cash_share,
         safe_divide(disputed_trips, trips) as dispute_rate,
+        safe_divide(flex_fare_trips, trips) as flex_fare_share,
         safe_divide(airport_trips, trips) as airport_share,
         safe_divide(cbd_tolled_trips, trips) as cbd_tolled_share,
         safe_divide(suspicious_trips, trips + suspicious_trips) as suspicious_share

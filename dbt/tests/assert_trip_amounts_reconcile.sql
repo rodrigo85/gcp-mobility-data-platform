@@ -6,6 +6,10 @@
 -- minus any combination of those fees is accepted; anything else fails.
 -- congestion_surcharge is sometimes NULL even though the standard USD 2.50 is
 -- inside the total, so a NULL is treated as "unknown": 0 or 2.50.
+-- Flex Fare trips (app-based upfront price) are excluded: TLC does not itemize
+-- them (fare_amount is often negative, fees are NULL) and only total_amount is
+-- reliable. They were 16% of trips in 2025-01 and 29% in 2025-06, which is why
+-- including them made this test look worse every month.
 -- 1-cent tolerance for rounding; suspicious trips are excluded.
 {{ config(severity='warn', warn_if='>100', error_if='>10000') }}
 
@@ -20,7 +24,7 @@ with trips as (
         cbd_congestion_fee,
         airport_fee
     from {{ ref('int_trips__enriched') }}
-    where not is_suspicious
+    where not is_suspicious and payment_type != 'flex_fare'
 
 ),
 

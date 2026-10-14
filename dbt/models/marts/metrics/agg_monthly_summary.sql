@@ -15,6 +15,7 @@ with monthly as (
         sum(cbd_toll_revenue) as cbd_toll_revenue,
         sum(trips * airport_share) as airport_trips,
         sum(trips * card_share) as card_trips,
+        sum(trips * flex_fare_share) as flex_fare_trips,
         sum(trips * cbd_tolled_share) as cbd_tolled_trips,
         avg(p50_speed_mph) as avg_daily_p50_speed_mph,
         avg(p50_duration_minutes) as avg_daily_p50_duration_minutes,
@@ -59,6 +60,7 @@ select
     safe_divide(monthly.revenue, monthly.trips) as avg_ticket,
     safe_divide(monthly.airport_trips, monthly.trips) as airport_share,
     safe_divide(monthly.card_trips, monthly.trips) as card_share,
+    safe_divide(monthly.flex_fare_trips, monthly.trips) as flex_fare_share,
     safe_divide(monthly.cbd_tolled_trips, monthly.trips) as cbd_tolled_share,
     safe_divide(monthly.avg_weekend_trips, monthly.avg_weekday_trips) as weekend_to_weekday_ratio,
     -- Growth on per-day averages, so month length does not distort it
