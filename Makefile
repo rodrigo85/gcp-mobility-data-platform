@@ -17,7 +17,7 @@ TF       := terraform -chdir=infra/terraform
 
 MONTH ?= 2025-01
 
-.PHONY: help venvs lint test test-beam test-spark test-simulator \
+.PHONY: help venvs lint test test-beam test-spark test-simulator dbt-parse tf-check check \
         tf-init tf-plan tf-apply tf-validate \
         emulator-topics simulate beam-local beam-dataflow \
         vps-deploy vps-setup vps-dag-test vps-download vps-spark-normalize \
@@ -49,6 +49,17 @@ test-spark:
 
 test-simulator:
 	cd simulator && ../$(SIM_PY) -m pytest tests
+
+dbt-parse: ## Validate the dbt project without a BigQuery connection
+	cd dbt && GCP_PROJECT_ID=$${GCP_PROJECT_ID:-offline-check} DBT_PROFILES_DIR=. ../$(DBT) deps
+	cd dbt && GCP_PROJECT_ID=$${GCP_PROJECT_ID:-offline-check} DBT_PROFILES_DIR=. ../$(DBT) parse --warn-error
+
+tf-check: ## terraform fmt + validate without credentials or backend
+	$(TF) fmt -check -recursive
+	$(TF) init -backend=false -input=false
+	$(TF) validate
+
+check: test dbt-parse tf-check ## Everything that runs offline: no GCP account needed
 
 # --- Infra -------------------------------------------------------------------
 tf-init: ## terraform init
