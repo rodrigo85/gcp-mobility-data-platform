@@ -71,6 +71,8 @@ resource "google_service_account" "kill_switch" {
   account_id   = "mobility-budget-kill-switch"
   display_name = "mobility budget kill switch"
   description  = "Unlinks the billing account when the budget kill threshold is crossed"
+
+  depends_on = [google_project_service.enabled]
 }
 
 # Project Billing Manager can unlink billing from this project, and nothing else

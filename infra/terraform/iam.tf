@@ -13,6 +13,8 @@ resource "google_service_account" "sa" {
   account_id   = "mobility-${each.key}"
   display_name = "mobility ${each.key}"
   description  = each.value
+
+  depends_on = [google_project_service.enabled]
 }
 
 locals {
