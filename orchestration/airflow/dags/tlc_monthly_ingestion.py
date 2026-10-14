@@ -46,8 +46,10 @@ PARTITION = '{{ data_interval_start.strftime("%Y%m") }}'
 LANDING = DATA_DIR / "landing" / "yellow"
 NORMALIZED = DATA_DIR / "normalized" / "yellow_trips"
 # Single source of truth for the bronze contract, shared with Terraform
+# (located relative to this file, so it resolves on the VPS and in CI alike)
+REPO_ROOT = Path(__file__).resolve().parents[3]
 BRONZE_SCHEMA = json.loads(
-    (MOBILITY_HOME / "infra/schemas/bronze_yellow_trips.json").read_text(encoding="utf-8")
+    (REPO_ROOT / "infra/schemas/bronze_yellow_trips.json").read_text(encoding="utf-8")
 )
 GCS_PREFIX = f"raw/yellow_trips/batch_month={MONTH}/"
 

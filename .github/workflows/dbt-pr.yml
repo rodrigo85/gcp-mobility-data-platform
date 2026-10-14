@@ -28,7 +28,8 @@ env:
 
 jobs:
   slim-ci:
-    if: github.event_name == 'pull_request'
+    # Skipped until the GCP variables are configured in the repository
+    if: github.event_name == 'pull_request' && vars.GCP_WIF_PROVIDER != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -81,7 +82,7 @@ jobs:
           done
 
   publish-prod-manifest:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && vars.GCP_WIF_PROVIDER != ''
     runs-on: ubuntu-latest
     defaults:
       run:
