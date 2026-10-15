@@ -53,3 +53,13 @@ Measured with Spark on the normalized Parquet files on the VPS (no BigQuery byte
 | 8 | Flex Fare adoption nearly doubled in six months | Reported as a business metric (`flex_fare_share` in `agg_daily_trip_metrics` and `agg_monthly_summary`) |
 
 Lesson: a quality metric that drifts upward is not always data getting worse. Here the mix of the population behind it changed, and splitting the metric by segment exposed that.
+
+## Analytics marts and the dashboard (2026-10-15)
+
+Found while building the [dashboard](../dashboard/index.html) from the nine marts.
+
+| # | Finding | Decision |
+|---|---|---|
+| 9 | The marts count `not is_suspicious`, so they total 23,425,975 trips against 24,082,454 rows in the six monthly loads. About 650,000 suspicious trips (2.7% of all trips, rebuilt from each day's `suspicious_share`) explain almost all of that gap; about 6,500 trips (0.03%) remain unexplained | The dashboard says so in its footer and its README section. The remaining 0.03% is open: check the `pickup_date >= '2020-01-01'` filter and trips outside the month of their file |
+| 10 | `is_toll_active` in `agg_congestion_toll_weekly` is `true` in all 27 Manhattan weeks, including the week of December 30, so it does not separate before from after the toll | The dashboard marks the toll start with a fixed date (January 5, 2025) and does not use the column. Fix or drop the column in dbt |
+| 11 | The first and last weeks of `agg_congestion_toll_weekly` are partial (data starts on January 1 and ends on June 30) | Noted under the weekly toll chart so the low bars are not read as a drop |

@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>NYC Mobility Dashboard</title>
+<!--
+  Generated file: edit dashboard/template.html, then run `make dashboard`.
+  The gold marts are embedded below as JSON, so this page opens from disk with no server.
+  Only d3 is loaded from a CDN (pinned version).
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #f3f4f2; --panel: #fcfcfb; --fg: #1d2125; --fg-muted: #5a636c; --line: #dfe2e0;
+    --ok: #17794a; --bad: #b8372a;
+    --c1: #2563c9; --c2: #d9731a; --c3: #1b8f7a; --c4: #8a4fd0;
+    --chart-muted: #b4bcc4; --axis: #c5cbd1; --grid: #e7eae8; --ref: #8a949e;
+    --pop: #ffffff; --pop-line: #cfd4d8; --pop-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    --radius: 10px; --gap-xs: 6px; --gap-sm: 10px; --gap-md: 16px; --gap-lg: 22px; --gap-xl: 40px;
+    --pad-xs: 6px; --pad-sm: 10px; --pad-md: 14px; --pad-lg: 18px;
+    --fs-caption: 0.78rem; --fs-heading: 1rem;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121211; --panel: #1a1a19; --fg: #ecece9; --fg-muted: #a1a8ae; --line: #2e302f;
+      --ok: #4cc58a; --bad: #f07a6b;
+      --c1: #4a80dc; --c2: #d6762a; --c3: #27a38b; --c4: #9a6bdc;
+      --chart-muted: #4b5258; --axis: #444b51; --grid: #272a29; --ref: #7d868e;
+      --pop: #242625; --pop-line: #3a3d3c; --pop-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px;
+    padding: clamp(14px, 3vw, 36px); }
+  .mb { max-width: 1120px; margin-inline: auto; position: relative; }
+  .mb h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.12;
+    margin: 0 0 var(--gap-sm); text-wrap: balance; }
+  .mb h2 { font-size: 1.15rem; font-weight: 600; margin: 0; }
+  .mb p { margin: 0; }
+  .mb .lead { max-width: 62ch; color: var(--fg-muted); line-height: 1.5; }
+  .mb .lead b, .mb td b { font-weight: 600; color: var(--fg); }
+  .mb nav { display: flex; flex-wrap: wrap; gap: var(--gap-xs); margin: var(--gap-lg) 0; }
+  .mb nav a { padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg-muted);
+    text-decoration: none; font-size: var(--fs-caption); }
+  .mb nav a:hover { color: var(--fg); border-color: var(--fg-muted); }
+  .mb section { margin-top: var(--gap-xl); scroll-margin-top: var(--gap-md); }
+  .mb section > header { margin-bottom: var(--gap-md); display: grid; gap: 4px; }
+  .mb section > header p { color: var(--fg-muted); font-size: var(--fs-caption); max-width: 70ch; line-height: 1.45; }
+  .grid { display: grid; gap: var(--gap-md); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad-lg); min-width: 0; }
+  .card.spaced { margin-top: var(--gap-md); }
+  .card h3 { font-size: var(--fs-heading); font-weight: 600; margin: 0 0 2px; }
+  .card .note { color: var(--fg-muted); font-size: var(--fs-caption); margin-bottom: var(--gap-sm); line-height: 1.4; }
+  .kpis { display: grid; gap: var(--gap-md); grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: var(--pad-md) var(--pad-lg); min-height: 5.6rem; container-type: inline-size; display: grid;
+    align-content: space-between; gap: 6px; }
+  .kpi .lbl, .kpi .sub { color: var(--fg-muted); font-size: var(--fs-caption); }
+  .kpi .val { font-family: var(--serif); font-size: clamp(1.15rem, 14cqw, 1.85rem); white-space: nowrap;
+    font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; }
+  .chart { min-height: 120px; position: relative; }
+  .chart svg { display: block; overflow: visible; }
+  .axis text { fill: var(--fg-muted); font-size: 11px; font-family: var(--sans); }
+  .axis path, .axis line { stroke: var(--axis); }
+  .grid-line { stroke: var(--grid); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: var(--gap-xs); font-size: var(--fs-caption); color: var(--fg-muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .tblwrap { overflow-x: auto; }
+  .mb table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: var(--fs-caption); }
+  .mb th { text-align: right; font-weight: 500; color: var(--fg-muted); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .mb td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .mb th:first-child, .mb td:first-child { text-align: left; }
+  .mb tr:last-child td { border-bottom: 0; }
+  .up { color: var(--ok); } .down { color: var(--bad); }
+  .heat { display: grid; grid-template-columns: 2.4rem repeat(24, minmax(0, 1fr)); gap: 2px; min-width: 520px; }
+  .heat .hl { font-size: 10px; color: var(--fg-muted); align-self: center; text-align: right; padding-right: 6px; }
+  .heat .hh { font-size: 10px; color: var(--fg-muted); text-align: center; height: 14px; }
+  .heat .c { aspect-ratio: 1.15; border-radius: 3px; }
+  .hscale { display: flex; align-items: center; gap: 8px; margin-top: var(--gap-sm); font-size: var(--fs-caption); color: var(--fg-muted); }
+  .hscale .bar { height: 8px; width: 120px; border-radius: 4px; }
+  .matrix { display: grid; grid-template-columns: 5.6rem repeat(5, minmax(0, 1fr)); gap: 3px; min-width: 460px; }
+  .matrix .mh { font-size: var(--fs-caption); color: var(--fg-muted); padding: 6px 4px; text-align: center; align-self: end; }
+  .matrix .ml { font-size: var(--fs-caption); color: var(--fg-muted); align-self: center; }
+  .matrix .c { border-radius: 4px; padding: 10px 4px; text-align: center; font-size: var(--fs-caption); font-variant-numeric: tabular-nums; }
+  .bars { display: grid; gap: 7px; }
+  .brow { display: grid; grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: var(--fs-caption); }
+  .brow .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brow .tr { height: 14px; background: color-mix(in srgb, var(--fg-muted) 14%, transparent); border-radius: 0 4px 4px 0; position: relative; }
+  .brow .fl { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; }
+  .brow .vl { color: var(--fg-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .tip { position: absolute; left: 0; top: 0; z-index: 10; pointer-events: none; background: var(--pop); border: 1px solid var(--pop-line);
+    border-radius: var(--radius); box-shadow: var(--pop-shadow); padding: var(--pad-xs) var(--pad-sm); font-size: var(--fs-caption); max-width: 16rem; }
+  .tip .tip-h { color: var(--fg-muted); margin-bottom: 2px; }
+  .state { min-height: 120px; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--fg-muted); font-size: var(--fs-caption); }
+  .state i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--bad); }
+  .foot { margin-top: var(--gap-xl); padding-top: var(--gap-md); border-top: 1px solid var(--line); color: var(--fg-muted);
+    font-size: var(--fs-caption); line-height: 1.5; max-width: 80ch; }
+  .foot code { font-size: 0.95em; }
+  noscript p { padding: var(--pad-lg); }
+</style>
+</head>
+<body>
+<div class="mb" id="dash-wrap">
+  <header>
+    <h1>New York mobility, January to June 2025</h1>
+    <p class="lead">Yellow taxis made <b data-t="trips">…</b> trips over <b data-t="days">…</b> days and took in <b data-t="revenue">…</b>, with an average ticket of <b data-t="ticket">…</b>. Manhattan's congestion toll began on January 5.</p>
+  </header>
+  <noscript><p>This dashboard needs JavaScript to draw its charts.</p></noscript>
+  <nav aria-label="Sections">
+    <a href="#overview">Overview</a><a href="#demand">Demand</a><a href="#geography">Geography</a><a href="#money">Money and toll</a><a href="#realtime">Real time</a>
+  </nav>
+
+  <section id="overview">
+    <header><h2>Overview</h2><p>The whole period, January to June 2025. Percentages are weighted by the number of trips.</p></header>
+    <div class="kpis">
+      <div class="kpi"><span class="lbl">Trips</span><b class="val" data-t="trips">…</b><span class="sub">Jan to Jun</span></div>
+      <div class="kpi"><span class="lbl">Revenue</span><b class="val" data-t="revenue">…</b><span class="sub">US dollars</span></div>
+      <div class="kpi"><span class="lbl">Average ticket</span><b class="val" data-t="ticket">…</b><span class="sub">revenue per trip</span></div>
+      <div class="kpi"><span class="lbl">Trips per day</span><b class="val" data-t="per_day">…</b><span class="sub">period average</span></div>
+      <div class="kpi"><span class="lbl">Airports</span><b class="val" data-t="airport">…</b><span class="sub">of trips</span></div>
+      <div class="kpi"><span class="lbl">Flagged suspicious</span><b class="val" data-t="suspicious">…</b><span class="sub">of all trips, left out</span></div>
+    </div>
+    <div class="card spaced">
+      <h3>Trips per day</h3>
+      <p class="note">The thick line is the 7-day average. The dashed line marks the start of the congestion toll (January 5).</p>
+      <div class="legend"><span><i style="background: var(--chart-muted)"></i>Trips that day</span><span><i style="background: var(--c1)"></i>7-day average</span></div>
+      <div class="chart" id="c-daily"></div>
+    </div>
+    <div class="card spaced">
+      <h3>Monthly summary</h3>
+      <p class="note">The change compares trips per day, because months have different lengths.</p>
+      <div class="tblwrap">
+        <table id="t-monthly">
+          <thead><tr><th>Month</th><th>Days</th><th>Trips</th><th>Trips/day</th><th>Revenue</th><th>Avg ticket</th><th>Trips/day vs. previous month</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="demand">
+    <header><h2>When the city rides</h2><p>Average trips by hour and day of the week. The color shows each hour against the average of all hours in the week.</p></header>
+    <div class="card">
+      <div class="tblwrap"><div class="chart" id="c-heat"></div></div>
+      <div class="hscale"><span>less</span><span class="bar" id="heat-bar"></span><span>more demand</span></div>
+    </div>
+  </section>
+
+  <section id="geography">
+    <header><h2>Where people go</h2><p>The five main boroughs. EWR and trips without a borough are left out of the flow grid.</p></header>
+    <div class="grid">
+      <div class="card">
+        <h3>Flows between boroughs</h3>
+        <p class="note">Rows are the origin, columns the destination. Color follows the square root of trips; otherwise Manhattan would swallow everything.</p>
+        <div class="tblwrap"><div class="chart" id="c-matrix"></div></div>
+      </div>
+      <div class="card">
+        <h3>Airports</h3>
+        <p class="note">Trips by airport and direction, with the average ticket.</p>
+        <div class="tblwrap">
+          <table id="t-air">
+            <thead><tr><th>Airport</th><th>Direction</th><th>Trips</th><th>Avg ticket</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card spaced">
+      <h3>The 15 zones that earn the most</h3>
+      <p class="note">Revenue by pickup zone. The percentage on the right is the running share of total revenue.</p>
+      <div class="bars" id="c-zones"></div>
+    </div>
+  </section>
+
+  <section id="money">
+    <header><h2>Money and toll</h2><p>How rides are paid for, and what the congestion toll changed in Manhattan.</p></header>
+    <div class="grid">
+      <div class="card">
+        <h3>Payment method by month</h3>
+        <p class="note">Share of each month's trips. Flex Fare is the upfront price set in the app.</p>
+        <div class="legend" id="pay-legend"></div>
+        <div class="chart" id="c-pay"></div>
+      </div>
+      <div class="card">
+        <h3>Toll revenue by week</h3>
+        <p class="note">Manhattan pickups, weeks starting on Monday. The first and last weeks are partial, so they look low.</p>
+        <div class="chart" id="c-toll"></div>
+      </div>
+    </div>
+    <div class="card spaced">
+      <h3>Median peak-hour speed in Manhattan</h3>
+      <p class="note">Miles per hour, by week.</p>
+      <div class="chart" id="c-speed"></div>
+    </div>
+  </section>
+
+  <section id="realtime">
+    <header><h2>Real time (simulator)</h2><p>Synthetic data from the ride simulator that feeds the streaming path. It is a single day and not part of the TLC data.</p></header>
+    <div class="kpis">
+      <div class="kpi"><span class="lbl">Trips</span><b class="val" data-k="trips">…</b><span class="sub" id="rt-date"></span></div>
+      <div class="kpi"><span class="lbl">Suspicious trips</span><b class="val" data-k="suspicious_trips">…</b><span class="sub">flagged</span></div>
+      <div class="kpi"><span class="lbl">Cancellations</span><b class="val" data-k="cancellation_rate">…</b><span class="sub">of requested rides</span></div>
+      <div class="kpi"><span class="lbl">Time to accept</span><b class="val" data-k="p50_seconds_to_accept">…</b><span class="sub">median</span></div>
+    </div>
+  </section>
+
+  <p class="foot">Source: the BigQuery <code>gold</code> tables, exported on __BUILT_AT__. Counts come from the marts, which leave out trips flagged as suspicious (about 2.7% of all trips); that explains almost all of the gap against <code>fct_trips</code>. Amounts are in US dollars.</p>
+  <div class="tip" id="tip" hidden></div>
+</div>
+
+<script>
+(() => {
+  // The gold marts, embedded by dashboard/build.py. Keys are the dataset ids used below.
+  const DATA = __DATA__;
+  const CALC = {};
+  const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)'];
+
+  // A tiny stand-in for a data layer: datasets come from DATA, derived tables from calc().
+  const dash = {
+    colors: COLORS,
+    data: (id) => { const d = DATA[id] || CALC[id]; return d ? { status: 'ok', data: d } : { status: 'error', data: [] }; },
+    calc: (id, { inputs, fn }) => { CALC[id] = fn(...inputs.map((i) => DATA[i] || CALC[i] || [])); },
+    onData: (fn) => { fn(); let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fn, 150); }); },
+  };
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const nf = new Intl.NumberFormat('en-US');
+  const cmp = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+  const usdC = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
+  const pct = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
+  const dec1 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  const parse = (s) => new Date(String(s).slice(0, 10) + 'T00:00:00Z');
+  const fmtDay = d3.utcFormat('%b %-d');
+  const fmtFull = d3.utcFormat('%b %-d, %Y');
+  const monthFmt = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const monthLabel = (ym) => monthFmt.format(parse(ym.length === 7 ? ym + '-01' : ym));
+  const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const SHORT = (d) => d.slice(0, 3);
+  const mix = (c, p) => `color-mix(in srgb, ${c} ${Math.round(p)}%, var(--panel))`;
+
+  // ---- Totals and payments, derived from the datasets ----
+  dash.calc('totals', {
+    inputs: ['monthly', 'daily'],
+    fn: (monthly, daily) => {
+      const sum = (a, f) => a.reduce((s, r) => s + f(r), 0);
+      const trips = sum(monthly, (r) => r.trips);
+      const revenue = sum(monthly, (r) => r.revenue);
+      const days = sum(monthly, (r) => r.days_observed);
+      // daily.trips excludes suspicious trips; suspicious_share is a share of ALL trips that day.
+      const all = sum(daily, (r) => r.trips / (1 - r.suspicious_share));
+      const w = (f) => sum(daily, (r) => r[f] * r.trips) / sum(daily, (r) => r.trips);
+      return [{ trips, revenue, days, ticket: revenue / trips, per_day: trips / days, airport: w('airport_share'), suspicious: (all - trips) / all }];
+    },
+  });
+  dash.calc('payment_by_month', {
+    inputs: ['payments'],
+    fn: (payments) => {
+      const name = (t) => ({ credit_card: 'Card', flex_fare: 'Flex Fare', cash: 'Cash' })[t] || 'Other';
+      const acc = new Map(); const tot = new Map();
+      for (const r of payments) {
+        const m = String(r.pickup_month).slice(0, 10);
+        const k = m + '|' + name(r.payment_type);
+        acc.set(k, (acc.get(k) || 0) + r.trips);
+        tot.set(m, (tot.get(m) || 0) + r.trips);
+      }
+      return [...acc].map(([k, trips]) => { const [month, payment] = k.split('|'); return { month, payment, trips, share: trips / tot.get(month) }; });
+    },
+  });
+
+  // ---- Drawing helpers ----
+  const tipEl = $('#tip');
+  function showTip(ev, lines) {
+    tipEl.replaceChildren(...lines.map((t, i) => { const d = document.createElement('div'); d.textContent = t; if (i === 0) d.className = 'tip-h'; return d; }));
+    tipEl.hidden = false;
+    const wrap = $('#dash-wrap').getBoundingClientRect();
+    let x = ev.clientX - wrap.left + 14; const y = ev.clientY - wrap.top + 14;
+    if (x + tipEl.offsetWidth > wrap.width) x = ev.clientX - wrap.left - tipEl.offsetWidth - 14;
+    tipEl.style.transform = `translate(${Math.max(0, x)}px, ${y}px)`;
+  }
+  const hideTip = () => { tipEl.hidden = true; };
+  function guard(box, id) {
+    const g = dash.data(id);
+    if (g.status === 'ok') return g;
+    box.replaceChildren();
+    const s = document.createElement('div'); s.className = 'state';
+    const t = document.createElement('span'); t.textContent = 'No data';
+    s.append(document.createElement('i'), t); box.append(s);
+    return null;
+  }
+  function svgBox(box, h) {
+    box.replaceChildren();
+    const w = Math.max(280, box.clientWidth);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', h).attr('viewBox', `0 0 ${w} ${h}`);
+    return { svg, w };
+  }
+  const cleanText = (s) => s.selectAll('text').attr('font-size', null).attr('font-family', null);
+  function axes(svg, x, y, w, h, m, yFmt, xTicks) {
+    svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${h - m.b})`)
+      .call(d3.axisBottom(x).ticks(xTicks).tickSizeOuter(0)).call(cleanText);
+    svg.append('g').attr('class', 'axis').attr('transform', `translate(${m.l},0)`)
+      .call(d3.axisLeft(y).ticks(5).tickFormat(yFmt).tickSize(-(w - m.l - m.r)).tickSizeOuter(0))
+      .call((g) => g.select('.domain').remove())
+      .call((g) => g.selectAll('.tick line').attr('class', 'grid-line')).call(cleanText);
+  }
+
+  // ---- Trips per day ----
+  function drawDaily() {
+    const box = $('#c-daily'); const g = guard(box, 'daily'); if (!g) return;
+    const rows = g.data.map((r) => ({ d: parse(r.pickup_date), trips: r.trips, avg: r.trips_7d_avg })).sort((a, b) => a.d - b.d);
+    const h = 300; const m = { t: 18, r: 14, b: 28, l: 52 };
+    const { svg, w } = svgBox(box, h);
+    const x = d3.scaleUtc([rows[0].d, rows[rows.length - 1].d], [m.l, w - m.r]);
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.trips) * 1.05], [h - m.b, m.t]).nice();
+    axes(svg, x, y, w, h, m, (v) => cmp.format(v), w < 520 ? 4 : 8);
+    svg.append('path').datum(rows).attr('fill', 'none').attr('stroke', 'var(--chart-muted)').attr('stroke-width', 1.2)
+      .attr('d', d3.line().x((r) => x(r.d)).y((r) => y(r.trips)));
+    svg.append('path').datum(rows).attr('fill', 'none').attr('style', `stroke: ${COLORS[0]}`).attr('stroke-width', 2.5)
+      .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round')
+      .attr('d', d3.line().x((r) => x(r.d)).y((r) => y(r.avg)));
+    const toll = parse('2025-01-05');
+    svg.append('line').attr('x1', x(toll)).attr('x2', x(toll)).attr('y1', m.t).attr('y2', h - m.b)
+      .attr('stroke', 'var(--ref)').attr('stroke-dasharray', '4 4');
+    svg.append('text').attr('x', x(toll) + 6).attr('y', m.t + 10).attr('fill', 'var(--fg-muted)').attr('font-size', 11).text('Toll starts');
+    const dot = svg.append('circle').attr('r', 4).attr('style', `fill: ${COLORS[0]}`).attr('stroke', 'var(--panel)').attr('stroke-width', 2).attr('display', 'none');
+    const bis = d3.bisector((r) => r.d).center;
+    svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', w - m.l - m.r).attr('height', h - m.t - m.b).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const r = rows[bis(rows, x.invert(d3.pointer(ev)[0]))];
+        dot.attr('display', null).attr('cx', x(r.d)).attr('cy', y(r.avg));
+        showTip(ev, [fmtFull(r.d), 'Trips: ' + nf.format(r.trips), '7-day average: ' + nf.format(Math.round(r.avg))]);
+      }).on('mouseleave', () => { dot.attr('display', 'none'); hideTip(); });
+  }
+
+  // ---- Monthly table ----
+  function drawMonthly() {
+    const body = $('#t-monthly').tBodies[0]; body.replaceChildren();
+    const g = dash.data('monthly'); if (g.status !== 'ok') return;
+    for (const r of [...g.data].sort((a, b) => (a.year_month < b.year_month ? -1 : 1))) {
+      const tr = document.createElement('tr');
+      const mom = r.trips_per_day_mom_change;
+      const cells = [monthLabel(r.year_month), nf.format(r.days_observed), nf.format(r.trips), nf.format(Math.round(r.avg_trips_per_day)),
+        usdC.format(r.revenue), usd.format(r.avg_ticket), mom == null ? '—' : (mom > 0 ? '+' : '') + pct.format(mom)];
+      cells.forEach((c, i) => { const td = document.createElement('td'); td.textContent = c; if (i === 6 && mom != null) td.className = mom >= 0 ? 'up' : 'down'; tr.append(td); });
+      body.append(tr);
+    }
+  }
+
+  // ---- Heatmap: day of week by hour ----
+  function drawHeat() {
+    const box = $('#c-heat'); const g = guard(box, 'hourweek'); if (!g) return;
+    box.replaceChildren();
+    const byKey = new Map(g.data.map((r) => [r.day_name + '|' + r.hour_of_day, r]));
+    const max = d3.max(g.data, (r) => r.demand_vs_avg_hour);
+    const grid = document.createElement('div'); grid.className = 'heat';
+    grid.append(document.createElement('span'));
+    for (let h = 0; h < 24; h++) { const e = document.createElement('span'); e.className = 'hh'; e.textContent = h % 3 === 0 ? String(h) : ''; grid.append(e); }
+    for (const day of DAY_ORDER) {
+      const l = document.createElement('span'); l.className = 'hl'; l.textContent = SHORT(day); grid.append(l);
+      for (let h = 0; h < 24; h++) {
+        const r = byKey.get(day + '|' + h); const c = document.createElement('div'); c.className = 'c';
+        if (r) {
+          c.style.background = mix(COLORS[0], 8 + 80 * Math.sqrt(r.demand_vs_avg_hour / max));
+          c.addEventListener('mousemove', (ev) => showTip(ev, [SHORT(day) + ', ' + h + ':00', nf.format(Math.round(r.avg_trips_per_day)) + ' trips per day', dec1.format(r.demand_vs_avg_hour) + '× the average hour']));
+          c.addEventListener('mouseleave', hideTip);
+        }
+        grid.append(c);
+      }
+    }
+    box.append(grid);
+    $('#heat-bar').style.background = `linear-gradient(90deg, ${mix(COLORS[0], 8)}, ${mix(COLORS[0], 88)})`;
+  }
+
+  // ---- Flows between boroughs ----
+  function drawMatrix() {
+    const box = $('#c-matrix'); const g = guard(box, 'boroughs'); if (!g) return;
+    box.replaceChildren();
+    const B = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'];
+    const SHORT_B = { 'Staten Island': 'Staten Is.' };
+    const by = new Map(g.data.map((r) => [r.pickup_borough + '|' + r.dropoff_borough, r]));
+    const max = d3.max(B.flatMap((a) => B.map((b) => (by.get(a + '|' + b) || { trips: 0 }).trips)));
+    const grid = document.createElement('div'); grid.className = 'matrix';
+    grid.append(document.createElement('span'));
+    for (const b of B) { const e = document.createElement('span'); e.className = 'mh'; e.textContent = SHORT_B[b] || b; grid.append(e); }
+    for (const a of B) {
+      const l = document.createElement('span'); l.className = 'ml'; l.textContent = SHORT_B[a] || a; grid.append(l);
+      for (const b of B) {
+        const r = by.get(a + '|' + b); const c = document.createElement('div'); c.className = 'c';
+        const n = r ? r.trips : 0;
+        c.style.background = mix(COLORS[0], 6 + 60 * Math.sqrt(n / max));
+        c.textContent = n ? cmp.format(n) : '—';
+        if (r) {
+          c.addEventListener('mousemove', (ev) => showTip(ev, [a + ' → ' + b, nf.format(r.trips) + ' trips', pct.format(r.share_of_trips) + ' of all trips']));
+          c.addEventListener('mouseleave', hideTip);
+        }
+        grid.append(c);
+      }
+    }
+    box.append(grid);
+  }
+
+  // ---- Airports ----
+  function drawAirports() {
+    const body = $('#t-air').tBodies[0]; body.replaceChildren();
+    const g = dash.data('airports'); if (g.status !== 'ok') return;
+    const dirText = { from_airport: 'From the airport', to_airport: 'To the airport' };
+    for (const r of [...g.data].sort((a, b) => b.trips - a.trips)) {
+      const tr = document.createElement('tr');
+      [r.airport, dirText[r.direction] || r.direction, nf.format(r.trips), usd.format(r.avg_ticket)].forEach((c) => { const td = document.createElement('td'); td.textContent = c; tr.append(td); });
+      body.append(tr);
+    }
+  }
+
+  // ---- Zones: bars with the running share ----
+  function drawZones() {
+    const box = $('#c-zones'); const g = dash.data('zones');
+    if (g.status !== 'ok') { box.replaceChildren(); return; }
+    const top = [...g.data].sort((a, b) => a.revenue_rank - b.revenue_rank).slice(0, 15);
+    const max = top[0].revenue;
+    box.replaceChildren(...top.map((r) => {
+      const row = document.createElement('div'); row.className = 'brow';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.zone_name; nm.title = r.borough;
+      const tr = document.createElement('div'); tr.className = 'tr';
+      const fl = document.createElement('div'); fl.className = 'fl';
+      fl.setAttribute('style', `width: ${(100 * r.revenue) / max}%; background: ${COLORS[0]}`);
+      tr.append(fl);
+      const vl = document.createElement('span'); vl.className = 'vl'; vl.textContent = usdC.format(r.revenue) + ' · ' + pct.format(r.cumulative_revenue_share);
+      row.append(nm, tr, vl);
+      row.addEventListener('mousemove', (ev) => showTip(ev, [r.zone_name + ', ' + r.borough, nf.format(r.trips) + ' trips', usd.format(r.revenue) + ' revenue', 'Running share: ' + pct.format(r.cumulative_revenue_share)]));
+      row.addEventListener('mouseleave', hideTip);
+      return row;
+    }));
+  }
+
+  // ---- Payment method by month (100% stacked bars) ----
+  const PAY = ['Card', 'Flex Fare', 'Cash', 'Other'];
+  const colorOf = (p, i) => (p === 'Other' ? 'var(--chart-muted)' : COLORS[i]);
+  function drawPay() {
+    const box = $('#c-pay'); const g = guard(box, 'payment_by_month'); if (!g) return;
+    $('#pay-legend').replaceChildren(...PAY.map((p, i) => { const s = document.createElement('span'); const sw = document.createElement('i'); sw.setAttribute('style', `background: ${colorOf(p, i)}`); s.append(sw, p); return s; }));
+    const months = [...new Set(g.data.map((r) => r.month))].sort();
+    const h = 280; const m = { t: 8, r: 8, b: 26, l: 40 };
+    const { svg, w } = svgBox(box, h);
+    const x = d3.scaleBand(months, [m.l, w - m.r]).padding(0.28);
+    const y = d3.scaleLinear([0, 1], [h - m.b, m.t]);
+    svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${h - m.b})`)
+      .call(d3.axisBottom(x).tickFormat((d) => monthLabel(d).replace(' 20', " '")).tickSizeOuter(0)).call(cleanText);
+    svg.append('g').attr('class', 'axis').attr('transform', `translate(${m.l},0)`)
+      .call(d3.axisLeft(y).ticks(4).tickFormat(d3.format('.0%')).tickSize(-(w - m.l - m.r)).tickSizeOuter(0))
+      .call((s) => s.select('.domain').remove()).call((s) => s.selectAll('.tick line').attr('class', 'grid-line')).call(cleanText);
+    for (const month of months) {
+      let acc = 0;
+      PAY.forEach((p, i) => {
+        const r = g.data.find((d) => d.month === month && d.payment === p); if (!r) return;
+        const y0 = y(acc), y1 = y(acc + r.share); acc += r.share;
+        svg.append('rect').attr('x', x(month)).attr('width', x.bandwidth()).attr('y', y1).attr('height', Math.max(0, y0 - y1 - 2)).attr('rx', 2)
+          .attr('style', `fill: ${colorOf(p, i)}`)
+          .on('mousemove', (ev) => showTip(ev, [monthLabel(month), p, pct.format(r.share) + ' of trips', nf.format(r.trips) + ' trips']))
+          .on('mouseleave', hideTip);
+      });
+    }
+  }
+
+  // ---- Congestion toll in Manhattan: revenue and speed ----
+  function manhattanWeeks(g) {
+    return g.data.filter((r) => r.pickup_borough === 'Manhattan')
+      .map((r) => ({ d: parse(r.week_start), toll: r.toll_revenue, speed: r.p50_manhattan_peak_speed_mph })).sort((a, b) => a.d - b.d);
+  }
+  function drawToll() {
+    const box = $('#c-toll'); const g = guard(box, 'toll'); if (!g) return;
+    const rows = manhattanWeeks(g); const h = 260; const m = { t: 10, r: 8, b: 28, l: 52 };
+    const { svg, w } = svgBox(box, h);
+    const x = d3.scaleBand(rows.map((r) => +r.d), [m.l, w - m.r]).padding(0.25);
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.toll) * 1.05], [h - m.b, m.t]).nice();
+    const every = Math.ceil(rows.length / (w < 520 ? 4 : 6));
+    svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${h - m.b})`)
+      .call(d3.axisBottom(x).tickValues(rows.filter((_, i) => i % every === 0).map((r) => +r.d)).tickFormat((v) => fmtDay(new Date(v))).tickSizeOuter(0)).call(cleanText);
+    svg.append('g').attr('class', 'axis').attr('transform', `translate(${m.l},0)`)
+      .call(d3.axisLeft(y).ticks(4).tickFormat((v) => usdC.format(v)).tickSize(-(w - m.l - m.r)).tickSizeOuter(0))
+      .call((s) => s.select('.domain').remove()).call((s) => s.selectAll('.tick line').attr('class', 'grid-line')).call(cleanText);
+    svg.selectAll('rect.b').data(rows).join('rect').attr('class', 'b').attr('x', (r) => x(+r.d)).attr('width', x.bandwidth())
+      .attr('y', (r) => y(r.toll)).attr('height', (r) => h - m.b - y(r.toll)).attr('rx', 3).attr('style', `fill: ${COLORS[0]}`)
+      .on('mousemove', (ev, r) => showTip(ev, ['Week of ' + fmtFull(r.d), 'Toll: ' + usd.format(r.toll)])).on('mouseleave', hideTip);
+  }
+  function drawSpeed() {
+    const box = $('#c-speed'); const g = guard(box, 'toll'); if (!g) return;
+    const rows = manhattanWeeks(g).filter((r) => r.speed != null); if (!rows.length) return;
+    const h = 240; const m = { t: 14, r: 14, b: 28, l: 44 };
+    const { svg, w } = svgBox(box, h);
+    const x = d3.scaleUtc([rows[0].d, rows[rows.length - 1].d], [m.l, w - m.r]);
+    const y = d3.scaleLinear([Math.max(0, Math.floor(d3.min(rows, (r) => r.speed) - 1)), Math.ceil(d3.max(rows, (r) => r.speed) + 1)], [h - m.b, m.t]);
+    axes(svg, x, y, w, h, m, (v) => dec1.format(v), w < 520 ? 4 : 7);
+    svg.append('path').datum(rows).attr('fill', 'none').attr('style', `stroke: ${COLORS[1]}`).attr('stroke-width', 2.5)
+      .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('d', d3.line().x((r) => x(r.d)).y((r) => y(r.speed)));
+    svg.selectAll('circle').data(rows).join('circle').attr('cx', (r) => x(r.d)).attr('cy', (r) => y(r.speed)).attr('r', 3.5)
+      .attr('style', `fill: ${COLORS[1]}`).attr('stroke', 'var(--panel)').attr('stroke-width', 1.5)
+      .on('mousemove', (ev, r) => showTip(ev, ['Week of ' + fmtFull(r.d), dec1.format(r.speed) + ' mph'])).on('mouseleave', hideTip);
+  }
+
+  // ---- Headline numbers and the simulator tiles ----
+  function fillValues() {
+    const t = dash.data('totals');
+    if (t.status === 'ok' && t.data.length) {
+      const r = t.data[0];
+      const text = { trips: cmp.format(r.trips), revenue: usdC.format(r.revenue), ticket: usd.format(r.ticket), days: nf.format(r.days),
+        per_day: nf.format(Math.round(r.per_day)), airport: pct.format(r.airport), suspicious: pct.format(r.suspicious) };
+      document.querySelectorAll('[data-t]').forEach((e) => { e.textContent = text[e.dataset.t]; });
+    }
+    const k = dash.data('kpis'); const r = k.status === 'ok' && k.data.find((x) => x.source === 'realtime_simulator');
+    if (r) {
+      const text = { trips: nf.format(r.trips), suspicious_trips: nf.format(r.suspicious_trips),
+        cancellation_rate: r.cancellation_rate == null ? '—' : pct.format(r.cancellation_rate),
+        p50_seconds_to_accept: r.p50_seconds_to_accept == null ? '—' : nf.format(Math.round(r.p50_seconds_to_accept)) + ' s' };
+      document.querySelectorAll('[data-k]').forEach((e) => { e.textContent = text[e.dataset.k]; });
+      $('#rt-date').textContent = fmtFull(parse(r.kpi_date));
+    }
+  }
+
+  dash.onData(() => {
+    fillValues(); drawDaily(); drawMonthly(); drawHeat(); drawMatrix(); drawAirports(); drawZones(); drawPay(); drawToll(); drawSpeed();
+  });
+})();
+</script>
+</body>
+</html>

@@ -175,9 +175,11 @@ exposures:
   - name: mobility_kpis_dashboard
     type: dashboard
     maturity: medium
+    url: https://github.com/rodrigo85/gcp-mobility-data-platform/blob/main/dashboard/index.html
     description: >
-      Looker Studio dashboard: monthly and daily KPIs, demand heatmap, borough
-      flows, airports, payment mix, zone ranking, congestion toll and real-time rides.
+      Static HTML dashboard (dashboard/index.html, rebuilt from these marts with
+      `make dashboard`): monthly and daily KPIs, demand heatmap, borough flows,
+      airports, payment mix, zone ranking, congestion toll and real-time rides.
     owner:
       name: Rodrigo Andreatta
     depends_on:

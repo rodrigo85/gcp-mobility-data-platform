@@ -17,7 +17,8 @@ TF       := terraform -chdir=infra/terraform
 
 MONTH ?= 2025-01
 
-.PHONY: help venvs lint test test-beam test-spark test-simulator dbt-parse tf-check check \
+.PHONY: help venvs lint test test-beam test-spark test-simulator test-dashboard dashboard \
+        dbt-parse tf-check check \
         tf-init tf-plan tf-apply tf-validate \
         emulator-topics simulate beam-local beam-dataflow \
         vps-deploy vps-setup vps-dag-test vps-download vps-spark-normalize \
@@ -50,6 +51,15 @@ test-spark:
 
 test-simulator:
 	cd simulator && ../$(SIM_PY) -m pytest tests
+
+test-dashboard: ## Tests of the dashboard build script (needs pytest)
+	$(PYTHON) -m pytest dashboard/tests
+
+# Reads the gold marts with list_rows (a storage read: no query job, no cost).
+# Needs `pip install google-cloud-bigquery` and Application Default Credentials.
+dashboard: ## Rebuild dashboard/index.html from the gold marts: make dashboard GCP_PROJECT_ID=<id>
+	@test -n "$(GCP_PROJECT_ID)" || (echo "Set GCP_PROJECT_ID" && exit 1)
+	$(PYTHON) dashboard/build.py --project $(GCP_PROJECT_ID)
 
 dbt-parse: ## Validate the dbt project without a BigQuery connection
 	cd dbt && GCP_PROJECT_ID=$${GCP_PROJECT_ID:-offline-check} DBT_PROFILES_DIR=. ../$(DBT) deps

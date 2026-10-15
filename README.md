@@ -2,7 +2,7 @@
 
 An urban mobility data platform on Google Cloud, modeled on what Uber and Lyft run in production. It is built on the public New York City taxi data ([NYC TLC](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)) and a real-time ride simulator.
 
-> **Status:** running end to end on a real GCP project. Batch (six TLC months, 24.1M trips) and streaming (real Pub/Sub into BigQuery) both land in bronze, dbt builds silver and gold, and Airflow orchestrates both paths, all under a hard BRL 100 cost cap. Analytics marts and the Looker Studio dashboard are being finished; Dataflow is the last optional piece. The full plan is in [docs/design-doc.md](docs/design-doc.md).
+> **Status:** running end to end on a real GCP project. Batch (six TLC months, 24.1M trips) and streaming (real Pub/Sub into BigQuery) both land in bronze, dbt builds silver and gold, and Airflow orchestrates both paths, all under a hard BRL 100 cost cap. Nine analytics marts feed a self-contained [dashboard](dashboard/index.html); Dataflow is the last optional piece. The full plan is in [docs/design-doc.md](docs/design-doc.md).
 
 ## Architecture
 
@@ -45,6 +45,61 @@ A query over `gold.fct_trips` joined to `dim_zones`, ranking pickup zones by rev
 
 **Bottom:** the `tlc_monthly_ingestion` DAG runs in Airflow: download, Spark, GCS, BigQuery load. Its last task reconciles the counts: **3,475,080 rows in BigQuery = 3,475,080 valid rows counted by Spark**. 146 rows were quarantined, each with its reason. Running the DAG again gives the same numbers, because each load replaces its partition.
 
+## Dashboard
+
+[`dashboard/index.html`](dashboard/index.html) is the report that sits on top of the gold marts: one self-contained HTML page with six months of New York yellow-taxi data (January to June 2025, 23.4M trips). To see it:
+
+- **Open it locally:** download `dashboard/index.html` and open it in a browser. The data is embedded in the file; the only outside request is the pinned d3 script from cdnjs.
+- **Preview it on GitHub:** [open it through htmlpreview](https://htmlpreview.github.io/?https://github.com/rodrigo85/gcp-mobility-data-platform/blob/main/dashboard/index.html). GitHub itself shows the source of an HTML file, not the rendered page.
+
+![Dashboard overview: headline numbers, trips per day with the 7-day average and the congestion toll start](docs/images/dashboard-overview.jpg)
+
+![Dashboard demand heatmap, borough flow grid and airport table](docs/images/dashboard-demand-geography.jpg)
+
+### What it shows
+
+| Section | Charts | Mart |
+|---|---|---|
+| Overview | Six headline numbers (trips, revenue, average ticket, trips per day, airport share, flagged-suspicious share), trips per day with a 7-day average and the toll start date, a monthly table with month-over-month change per day | `agg_daily_trip_metrics`, `agg_monthly_summary` |
+| Demand | Heatmap of average trips by hour and day of week | `agg_hour_of_week_profile` |
+| Geography | Origin-destination grid for the five boroughs, airport trips by direction, the 15 zones that earn the most with their running revenue share | `agg_borough_od_flows`, `agg_airport_trips`, `agg_zone_scorecard` |
+| Money and toll | Payment method by month, weekly congestion-toll revenue and median peak-hour speed in Manhattan | `agg_payment_mix`, `agg_congestion_toll_weekly` |
+| Real time | Four tiles from the ride simulator (a single synthetic day, not TLC data) | `agg_daily_kpis` |
+
+The charts have tooltips, and the page follows the light or dark theme of the system. The categorical colors were checked with a palette validator for contrast, lightness band and color-blind separation, in both themes.
+
+### How it is built
+
+```
+BigQuery gold marts ──(list_rows)──> dashboard/build.py ──> dashboard/index.html
+                                            ▲
+                                  dashboard/template.html
+```
+
+1. `dashboard/build.py` reads the nine marts with `list_rows`. That is a storage read: it creates **no query job and bills no bytes**, so refreshing the report is free.
+2. It writes them as JSON into `dashboard/template.html` (the source of the page) and saves the result as `dashboard/index.html`. Values are escaped so a cell can never close the script tag.
+3. Numbers on the page are computed in the browser from those rows (for example, the totals are the sum of the monthly mart and the percentages are weighted by trips), so each figure can be traced to a mart column.
+
+To refresh it after a dbt run:
+
+```bash
+pip install google-cloud-bigquery
+gcloud auth application-default login
+make dashboard GCP_PROJECT_ID=<your-project>      # rewrites dashboard/index.html
+make test-dashboard                               # tests of the build script
+```
+
+`python dashboard/build.py --from-json marts.json` builds it from a JSON file instead of BigQuery (keys are the dataset ids listed in `build.py`).
+
+### Design decisions and caveats
+
+- **A static page instead of a hosted BI tool.** A Looker Studio report was started first, but it lives outside the repository and is built by hand in a web editor, so it cannot be reviewed or reproduced from code. The HTML file lives in git, diffs in a pull request, needs no account to read and costs nothing to host. The trade-off is that it is a snapshot of the day it was built, not a live connection.
+- **The dashboard reads marts only, never `fct_trips`.** Each page load costs no BigQuery bytes, because the page does not query anything.
+- **The marts leave out suspicious trips.** `agg_daily_trip_metrics` counts `not is_suspicious`, so the dashboard shows 23,425,975 trips while the six monthly loads total 24,082,454 rows. About 650,000 suspicious trips (2.7% of all trips, rebuilt from each day's `suspicious_share`) explain almost all of the gap. The remaining ~6,500 trips (0.03%) are not explained yet.
+- **Partial weeks.** The first and last weeks of the toll charts are partial (data starts on January 1 and ends on June 30), so they look low.
+- **`is_toll_active` is not used.** In `agg_congestion_toll_weekly` it is true for every week, including weeks before the toll, so the page marks the toll start with a fixed date (January 5, 2025) instead. That column deserves a look in dbt.
+- **Amounts are in US dollars** and use the TLC `total_amount`; Flex Fare trips are included in the revenue and are shown as their own payment method.
+
 ## Runtime
 
 Orchestration and Spark run on a self-hosted VPS that already hosts Airflow 2.10 and a Spark 3.5 cluster, so they cost nothing (see [docs/deploy-vps.md](docs/deploy-vps.md) and [ADR 0002](docs/adr/0002-local-airflow-instead-of-composer.md)). The Airflow scheduler mounts the project read-only. Spark jobs and TLC downloads therefore run inside the Spark master container via `docker exec`, and the scheduler only reads what they produce. Python 3.11 is used everywhere, matching the VPS containers. The DAGs are written to be Airflow 3-compatible.
@@ -72,6 +127,9 @@ Orchestration and Spark run on a self-hosted VPS that already hosts Airflow 2.10
 | Batch on real GCP | Airflow `tlc_monthly_ingestion` + `dbt_batch` | 7 tasks `SUCCESS`, 3,475,080 rows in BigQuery = Spark output; dbt `PASS=25 WARN=1 ERROR=0` |
 | Six-month backfill | `tlc_monthly_ingestion` for 2025-01 to 2025-06 | BigQuery = Spark in every month: 3,475,080 · 3,577,419 · 4,145,143 · 3,970,383 · 4,591,720 · 4,322,709 (24.1M trips); `fct_trips` rebuilt with uniqueness and relationship tests passing |
 | Reconciliation drift explained | Spark over the six months of Parquet (no BigQuery bytes) | The amounts check went from 2.4% to 3.7% of trips failing. 97.5% of failures are Flex Fare (upfront app price, not itemized by the TLC), whose share grew from 15.7% to 29% of trips; every other trip fails at a flat ~0.12% a month. The test now excludes Flex Fare and the marts use `total_amount` ([findings 6 to 8](docs/data-quality-findings.md)) |
+| Analytics marts | dbt on BigQuery, October 15, 2026 | Nine marts built in two runs: `PASS=39 WARN=0 ERROR=0`, including the unit test `monthly_summary_normalizes_growth_by_days`. About 15.4 GiB processed in total, inside the free tier |
+| Reconciliation after the Flex Fare fix | `assert_trip_amounts_reconcile` | `WARN` with 21,960 trips (about 0.09% of 24.1M), down from 3.7% of trips failing before Flex Fare was excluded. About 6 GiB processed |
+| Dashboard | `dashboard/` | One self-contained HTML page built from the nine marts (1,175 rows, 605 KiB), rendered and inspected in Chrome; the build script has 6 tests and passes Ruff |
 | Test suites | Local and VPS | Simulator 4, Beam 19, Spark 3 (on the VPS cluster), Airflow DAG integrity 7 (on the VPS Airflow 2.10.4); `dbt parse` clean; `terraform validate` clean |
 
 ## Layout
@@ -85,6 +143,7 @@ Orchestration and Spark run on a self-hosted VPS that already hosts Airflow 2.10
 │   ├── beam/               streaming: Pub/Sub → BigQuery bronze
 │   └── spark/              batch: TLC Parquet → normalized Parquet
 ├── dbt/                    silver and gold in BigQuery
+├── dashboard/              self-contained HTML report built from the gold marts
 ├── orchestration/airflow/  DAGs and integrity tests
 └── .github/workflows/      CI, dbt per PR, Terraform
 ```
@@ -302,6 +361,7 @@ bq query --use_legacy_sql=false \
 
 ## Documentation
 
+- [Dashboard](dashboard/index.html) (how it works: the [Dashboard section](#dashboard) above)
 - [Design doc](docs/design-doc.md)
 - [ADRs](docs/adr/)
 - [Data SLOs](docs/data-slos.md)
