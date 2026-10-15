@@ -526,12 +526,18 @@ const startDashboard = () => {
   });
 };
 
-// Some viewers (htmlpreview.github.io, for one) run this script before the d3 <script> above has
-// finished loading, so wait for it instead of assuming the order. Start only once.
+// Some viewers (htmlpreview.github.io, for one) never fetch the d3 <script> tag above, or run this
+// script before it loads. So: if d3 is missing, load it from here, then start once it is there.
+const D3_URL = 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js';
 let waited = 0;
 const waitForD3 = () => {
   if (window.__nycDashboardStarted) return;
   if (typeof d3 !== 'undefined') { window.__nycDashboardStarted = true; startDashboard(); return; }
+  if (waited === 0) {
+    const s = document.createElement('script');
+    s.src = D3_URL;
+    document.head.appendChild(s);
+  }
   if (++waited > 200) {
     document.querySelector('.lead').textContent = 'The charts need the d3 library from cdnjs.cloudflare.com. Check your connection and reload.';
     return;
