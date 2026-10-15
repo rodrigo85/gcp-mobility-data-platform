@@ -50,7 +50,7 @@ A query over `gold.fct_trips` joined to `dim_zones`, ranking pickup zones by rev
 [`dashboard/index.html`](dashboard/index.html) is the report that sits on top of the gold marts: one self-contained HTML page with six months of New York yellow-taxi data (January to June 2025, 23.4M trips). To see it:
 
 - **Open it locally:** download `dashboard/index.html` and open it in a browser. The data is embedded in the file; the only outside request is the pinned d3 script from cdnjs.
-- **Preview it on GitHub:** [open it through htmlpreview](https://htmlpreview.github.io/?https://github.com/rodrigo85/gcp-mobility-data-platform/blob/main/dashboard/index.html). GitHub itself shows the source of an HTML file, not the rendered page.
+- **Preview it on GitHub:** [open it through htmlpreview](https://htmlpreview.github.io/?https://github.com/rodrigo85/gcp-mobility-data-platform/blob/main/dashboard/index.html). GitHub itself shows the source of an HTML file, not the rendered page. That service caches what it fetches, so for a while after an update it can still show an older copy; if the numbers stay at "…", open the file locally. Turning on GitHub Pages for the repository would give the page a permanent address.
 
 ![Dashboard overview: headline numbers, trips per day with the 7-day average and the congestion toll start](docs/images/dashboard-overview.jpg)
 
