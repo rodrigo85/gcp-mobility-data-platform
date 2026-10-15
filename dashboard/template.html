@@ -214,7 +214,7 @@
 </div>
 
 <script>
-(() => {
+const startDashboard = () => {
   // The gold marts, embedded by dashboard/build.py. Keys are the dataset ids used below.
   const DATA = __DATA__;
   const CALC = {};
@@ -524,7 +524,21 @@
   dash.onData(() => {
     fillValues(); drawDaily(); drawMonthly(); drawHeat(); drawMatrix(); drawAirports(); drawZones(); drawPay(); drawToll(); drawSpeed();
   });
-})();
+};
+
+// Some viewers (htmlpreview.github.io, for one) run this script before the d3 <script> above has
+// finished loading, so wait for it instead of assuming the order. Start only once.
+let waited = 0;
+const waitForD3 = () => {
+  if (window.__nycDashboardStarted) return;
+  if (typeof d3 !== 'undefined') { window.__nycDashboardStarted = true; startDashboard(); return; }
+  if (++waited > 200) {
+    document.querySelector('.lead').textContent = 'The charts need the d3 library from cdnjs.cloudflare.com. Check your connection and reload.';
+    return;
+  }
+  setTimeout(waitForD3, 50);
+};
+waitForD3();
 </script>
 </body>
 </html>

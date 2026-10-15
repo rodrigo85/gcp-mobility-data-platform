@@ -64,3 +64,10 @@ def test_main_writes_the_page(tmp_path):
     out = tmp_path / "index.html"
     assert build.main(["--from-json", str(source), "--output", str(out)]) == 0
     assert embedded(out.read_text(encoding="utf-8")) == sample()
+
+
+def test_page_waits_for_d3_instead_of_assuming_script_order():
+    # htmlpreview.github.io runs the inline script before the d3 <script> finishes loading
+    html = build.render(TEMPLATE.read_text(encoding="utf-8"), sample(), date(2026, 10, 15))
+    assert "waitForD3" in html
+    assert "typeof d3" in html
